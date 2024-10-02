@@ -83,11 +83,25 @@ def fetch_books2(id_dieta):
     return refeicoes_com_nomes
     
 
-
+def adicionar_refeiçao(nome,calorias,proteina,carboidratos,gorduras,typo_pesagem):
+        conn = conectar_bd()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO refeiçao ()
+                VALUES (%s, %s, %s, %s,%s,%s,%s)
+            ''', (nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,'nao'))
+            conn.commit()
+            popup('Refeição adicionado com sucesso', title='Sucesso')
+        except Exception as e:
+            popup(f"Erro ao adicionar refeição: {e}", title='Erro')
+        finally:
+            conn.close()
+    
 
 def Tela_adicionar_dieta(id_dieta):
     dados = fetch_books2(id_dieta)  # Usando a função fetch_books para obter os livros
-    cabecalhos = ['Nome do aLimento ','Horario da refeiçao ', 'Alimento', 'Porçao']
+    cabecalhos = ['Nome do alimento ','Horario da refeiçao ', 'Alimento', 'Porçao']
     tree_data = gerar_dados_estruturados(dados)
     alimentos = ['mamao']
     layout = [
@@ -117,4 +131,19 @@ def tela_dieta(id_criador):
     [Tree(data=tree_data, headings=cabecalhos, col0_width=10, auto_size_columns=True, num_rows=10, key='-TREE-', show_expanded=False)]
     ]
     return layout
-
+def mover_refeiçao_para_apagados(id_refeiçao):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE refeiçao
+            SET apagado = %s, date = %s
+            WHERE id = %s
+        """, ('sim', datetime.now().strftime("%Y-%m-%d"), id_refeiçao))
+        conn.commit()
+        popup('Refeição movida para apagados com sucesso', title='Sucesso')
+    except Exception as e:
+        popup(f"Erro ao mover refeiçao para apagados: {e}", title='Erro')
+    finally:
+       conn.close()
+   
