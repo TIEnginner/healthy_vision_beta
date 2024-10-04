@@ -314,8 +314,8 @@ def main(page: ft.Page):
 
     page.title = "Supermercado"
     page.window.full_screen = False  # Muda para False para não ser tela cheia
-    page.window.width = 800  # Defina uma largura adequada para sua aplicação
-    page.window.height = 700  # Defina uma altura adequada para sua aplicação
+    page.window.width = 1000  # Defina uma largura adequada para sua aplicação
+    page.window.height = 800  # Defina uma altura adequada para sua aplicação
 
     label = ft.Text("Biblioteca Acervo", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
     label1 = ft.Text("Login")
@@ -398,118 +398,100 @@ def main(page: ft.Page):
     page.add(main_container)
     page.update()
 
-    def build_sidebar(page):
-        # Itens do menu da sidebar
-        top_nav_items = [
-            ft.NavigationRailDestination(
-                label_content=ft.Text("Dietas"),
-                label="Dietas",
-                icon=ft.icons.FOOD_BANK_OUTLINED,
-                selected_icon=ft.icons.FOOD_BANK_OUTLINED
-            ),
-            ft.NavigationRailDestination(
-                label_content=ft.Text("Pacientes"),
-                label="Pacientes",
-                icon=ft.icons.SUPERVISED_USER_CIRCLE,
-                selected_icon=ft.icons.SUPERVISED_USER_CIRCLE
-            ),
-            ft.NavigationRailDestination(
-                label_content=ft.Text("Configurações"),
-                label="Configurações",
-                icon=ft.icons.SETTINGS,
-                selected_icon=ft.icons.SETTINGS
-            ),
+    def build_custom_navbar(page):
+        def handle_nav_click(label):
+            print(f"Botão {label} clicado")
+            # Aqui você pode adicionar a lógica para mudar o conteúdo da página
+
+        # Itens da barra lateral
+        nav_items = [
+            {"label": "Gerenciar dietas", "icon": ft.icons.FOOD_BANK_OUTLINED},
+            {"label": "Alimentos", "icon": ft.icons.KITCHEN},
+            {"label": "Configurações", "icon": ft.icons.SETTINGS},
         ]
 
-        # Navegação lateral
-        top_nav_rail = ft.NavigationRail(
-            selected_index=None,
-            label_type="all",
-            on_change=lambda e: print(f"Selected: {e.control.selected_index}"),
-            destinations=top_nav_items,
-            bgcolor= "#4F4F4F",
-            extended=True,
-            expand=True,  # Permite que o NavigationRail se expanda
+        # Simulação da barra lateral com botões
+        sidebar_content = ft.Column(
+            [
+                ft.Text("Workspace", size=20, color=ft.colors.WHITE),
+                ft.Container(
+                    bgcolor=ft.colors.BLACK26,
+                    height=1,
+                    width=200,
+                ),
+                *[
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Icon(nav_item["icon"], size=25, color=ft.colors.WHITE),
+                                ft.Text(nav_item["label"], size=18, color=ft.colors.WHITE)
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                            spacing=10
+                        ),
+                        padding=ft.padding.symmetric(vertical=10),
+                        bgcolor="#4F4F4F",
+                        border_radius=ft.border_radius.all(5),
+                        height=40,
+                        on_click=lambda e, label=nav_item["label"]: handle_nav_click(label),
+                    )
+                    for nav_item in nav_items
+                ],
+                ft.Container(
+                    bgcolor=ft.colors.BLACK26,
+                    height=1,
+                    width=200,
+                ),
+            ],
+            spacing=20,
+            alignment=ft.MainAxisAlignment.START,
         )
 
-        # Sidebar
-        sidebar = ft.Container(
-            content=ft.Column(
-                [
-                    ft.Row([ft.Text("Workspace", size=20)]),
-                    # Divisor
-                    ft.Container(
-                        bgcolor=ft.colors.BLACK26,
-                        border_radius=ft.border_radius.all(30),
-                        height=1,
-                        alignment=ft.alignment.center_right,
-                        width=220,
-                    ),
-                    top_nav_rail,
-                    # Divisor
-                    ft.Container(
-                        bgcolor=ft.colors.BLACK26,
-                        border_radius=ft.border_radius.all(30),
-                        height=1,
-                        alignment=ft.alignment.center_right,
-                        width=220,
-                    ),
-                ],
-                tight=True,
-            ),
-            padding=ft.padding.all(15),
-            margin=ft.margin.all(0),
+        # Container da barra lateral
+        sidebar_frame = ft.Container(
+            content=sidebar_content,
             width=250,
-            height=page.window_height,  # Define a altura da sidebar como a altura da janela
+            height=page.window_height,
             bgcolor="#4F4F4F",
+            padding=ft.padding.all(10),
             border_radius=ft.border_radius.all(10)
         )
 
-        return sidebar
+        return sidebar_frame
 
     def page_nutro(page: ft.Page):
         page.clean()  # Limpa a página
 
-        sidebar = build_sidebar(page)
+        # Barra lateral simulada
+        sidebar = build_custom_navbar(page)
 
-        content = ft.Container(
+        # Container principal onde o conteúdo será adicionado no futuro
+        main_content = ft.Container(
             content=ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Icon(
-                                ft.icons.ZOOM_IN,
-                                size=50,
-                                color=ft.colors.BLACK26
-                            ),
-                            ft.Text(
-                                " Nenhuma dieta a ver",
-                                size=18,
-                                color=ft.colors.BLACK26
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=10
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,  # Centraliza o conteúdo verticalmente
-                spacing=20  # Adiciona espaçamento vertical entre os itens
+                controls=[
+                    ft.Text("Nenhuma dieta a ver", size=20, color="#D3D3D3"),
+                    ft.ElevatedButton("Adicionar Dieta",icon=ft.icons.ADD, on_click=lambda e: print("Botão clicado!")),
+
+                ]
             ),
-            padding=10,
+            padding=ft.padding.all(20),
+        )
+
+        # Layout da página com barra lateral e conteúdo
+        page_layout = ft.Row(
+            [
+                sidebar,  # Barra lateral à esquerda
+                main_content,  # Conteúdo principal à direita
+            ],
+            alignment=ft.MainAxisAlignment.START,
             expand=True,
+            spacing=250  # Adiciona um espaço fixo entre os componentes
         )
 
-        page.add(
-            ft.Row(
-                [
-                    sidebar,
-                    content,
-                ],
-                alignment=ft.MainAxisAlignment.START,
-                expand=True  # Faz o Row ocupar o espaço total
-            ),
-        )
-
+        # Adiciona o layout à página
+        page.add(page_layout)
         page.update()
+
+
 
 ft.app(target=main)
