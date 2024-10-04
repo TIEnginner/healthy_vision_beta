@@ -36,7 +36,7 @@ def menu(page: ft.Page):
     page.theme = ft.Theme(color_scheme_seed='yellow')
     page.add(ft.Text(value='Bem vindo!', size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLACK))
     
-    radio_group = ft.RadioGroup(
+    radios_group = ft.RadioGroup(
         value='Nutrólogo',
         content=ft.Column(
             controls=[
@@ -46,8 +46,8 @@ def menu(page: ft.Page):
         )
     )
     
-    name_field = ft.TextField(label='Nome:', text_align=ft.TextAlign.LEFT)
-    password_field = ft.TextField(label='Senha:', password=True, text_align=ft.TextAlign.LEFT)
+    name_field = ft.TextField(label='Nome:', keyboard_type=ft.KeyboardType.TEXT, text_align=ft.TextAlign.LEFT)
+    password_field = ft.TextField(label='Senha:', password=True, keyboard_type=ft.KeyboardType.NUMBER,text_align=ft.TextAlign.LEFT)
 
     def add_medic(e):
         global R, P, E
@@ -101,16 +101,16 @@ def menu(page: ft.Page):
             page.update()
             return
         
-        if verify_user(nome, senha):
+        if verify_user(nome, senha) and radios_group.value=='Nutrólogo':
             view_diets(page)
         else:
             warning_error()
 
-    send_button = ft.ElevatedButton(text='Enviar', on_click=on_send_click)
-    add_medic_button = ft.ElevatedButton(text='Cadastrar novo nutrólogo', on_click=add_medic)
-    add_pacient_button = ft.ElevatedButton(text='Cadastrar novo paciente', on_click=add_pacient)
+    send_button = ft.ElevatedButton(text='Enviar', icon=ft.icons.SEND, on_click=on_send_click)
+    add_medic_button = ft.ElevatedButton(text='Cadastrar novo nutrólogo', icon=ft.icons.ADD, on_click=add_medic)
+    add_pacient_button = ft.ElevatedButton(text='Cadastrar novo paciente', icon=ft.icons.ADD,  on_click=add_pacient)
     
-    page.add(name_field, password_field, send_button, add_medic_button, add_pacient_button, radio_group)
+    page.add(name_field, password_field, send_button, add_medic_button, add_pacient_button, radios_group)
 
     def doctor_registration(e):
         global R, P, E
@@ -147,6 +147,7 @@ def menu(page: ft.Page):
             page.update()
 
     def pacient_registration(e):
+        global T, W, S
         nome = T.value.strip()
         senha = W.value.strip()
         email = S.value.strip()
@@ -180,52 +181,63 @@ def menu(page: ft.Page):
             page.update()
 
     def cadastrar_dieta(page: ft.Page):
-        def save_dieta(nome, descricao, calorias, proteinas, carboidratos, gorduras):
-            conn = create_connection()
-            if conn:
-                try:
-                    with conn.cursor() as cursor:
-                        cursor.execute(
-                            "INSERT INTO dieta (nome, descricao, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s, %s)",
-                            (nome, descricao, calorias, proteinas, carboidratos, gorduras)
-                        )
-                        conn.commit()
-                        snack_bar = ft.SnackBar(ft.Text(f'Dieta "{nome}" cadastrada com sucesso!'))
-                        page.snack_bar = snack_bar
-                        snack_bar.open = True
-                except Error as e:
-                    snack_bar = ft.SnackBar(ft.Text('Erro ao cadastrar dieta.'))
-                    page.snack_bar = snack_bar
-                    snack_bar.open = True
-                    print(f"Ocorreu um erro ao executar a consulta: {e}")
-                finally:
-                    conn.close()
+        nome_field = ft.TextField(label="Nome da dieta:")
+        descricao_field = ft.TextField(label="Descrição:")
+        calorias_field = ft.TextField(label="Calorias:", keyboard_type=ft.KeyboardType.NUMBER)
+        proteinas_field = ft.TextField(label="Proteínas:", keyboard_type=ft.KeyboardType.NUMBER)
+        carboidratos_field = ft.TextField(label="Carboidratos:", keyboard_type=ft.KeyboardType.NUMBER)
+        gorduras_field = ft.TextField(label="Gorduras:", keyboard_type=ft.KeyboardType.NUMBER)
 
         dialogos = ft.AlertDialog(
             title=ft.Text("Cadastrar Dieta"),
             content=ft.Column([
-                ft.TextField(label="Nome da dieta:"),
-                ft.TextField(label="Descrição:"),
-                ft.TextField(label="Calorias:", keyboard_type=ft.KeyboardType.NUMBER),
-                ft.TextField(label="Proteínas:", keyboard_type=ft.KeyboardType.NUMBER),
-                ft.TextField(label="Carboidratos:", keyboard_type=ft.KeyboardType.NUMBER),
-                ft.TextField(label="Gorduras:", keyboard_type=ft.KeyboardType.NUMBER),
+                nome_field,
+                descricao_field,
+                calorias_field,
+                proteinas_field,
+                carboidratos_field,
+                gorduras_field,
             ]),
             actions=[
-                ft.ElevatedButton(text='Cadastrar', on_click=lambda e: save_dieta(
-                    dialogos.content[0].value,
-                    dialogos.content[1].value,
-                    dialogos.content[2].value,
-                    dialogos.content[3].value,
-                    dialogos.content[4].value,
-                    dialogos.content[5].value
-                )),
+                ft.ElevatedButton(
+                    text='Cadastrar',
+                    on_click=lambda e: save_dieta(
+                        nome_field.value,
+                        descricao_field.value,
+                        calorias_field.value,
+                        proteinas_field.value,
+                        carboidratos_field.value,
+                        gorduras_field.value
+                    )
+                ),
                 ft.ElevatedButton(text='Cancelar', on_click=lambda e: dialogos.close()),
             ]
         )
-        
+
         page.overlay.append(dialogos)
         dialogos.open = True
+        page.update()
+
+    def save_dieta(nome, descricao, calorias, proteinas, carboidratos, gorduras):
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO dieta (nome, descricao, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (nome, descricao, calorias, proteinas, carboidratos, gorduras)
+                    )
+                    conn.commit()
+                    snack_bar = ft.SnackBar(ft.Text(f'Dieta "{nome}" cadastrada com sucesso!'))
+                    page.snack_bar = snack_bar
+                    snack_bar.open = True
+            except Error as e:
+                snack_bar = ft.SnackBar(ft.Text('Erro ao cadastrar dieta.'))
+                page.snack_bar = snack_bar
+                snack_bar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
         page.update()
 # view paciente
     def listar_dieta(page: ft.Page):
