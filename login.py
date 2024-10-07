@@ -314,7 +314,7 @@ def main(page: ft.Page):
 
     page.title = "Supermercado"
     page.window.full_screen = False  # Muda para False para não ser tela cheia
-    page.window.width = 1000  # Defina uma largura adequada para sua aplicação
+    page.window.width = 1250  # Defina uma largura adequada para sua aplicação
     page.window.height = 800  # Defina uma altura adequada para sua aplicação
 
     label = ft.Text("Biblioteca Acervo", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
@@ -398,10 +398,16 @@ def main(page: ft.Page):
     page.add(main_container)
     page.update()
 
-    def build_custom_navbar(page):
+    def build_custom_navbar(page, page_dietas):
         def handle_nav_click(label):
-            print(f"Botão {label} clicado")
-            # Aqui você pode adicionar a lógica para mudar o conteúdo da página
+            if label == "Gerenciar dietas":
+                page_dietas()
+            elif label == "Alimentos":
+                print("Botão 'Alimentos' clicado")
+                # Adicione a lógica para "Alimentos" aqui
+            elif label == "Configurações":
+                print("Botão 'Configurações' clicado")
+                # Adicione a lógica para "Configurações" aqui
 
         # Itens da barra lateral
         nav_items = [
@@ -433,7 +439,7 @@ def main(page: ft.Page):
                         bgcolor="#4F4F4F",
                         border_radius=ft.border_radius.all(5),
                         height=40,
-                        on_click=lambda e, label=nav_item["label"]: handle_nav_click(label),
+                        on_click=lambda e, lbl=nav_item["label"]: handle_nav_click(lbl),  # Aqui passamos o rótulo correto
                     )
                     for nav_item in nav_items
                 ],
@@ -459,23 +465,218 @@ def main(page: ft.Page):
 
         return sidebar_frame
 
+    def cadastrar_dieta(page: ft.Page):
+        nome_field = ft.TextField(label="Nome da dieta:")
+        calorias_field = ft.TextField(label="Calorias Totais:", keyboard_type=ft.KeyboardType.NUMBER)
+
+        dialogos = ft.AlertDialog(
+            title=ft.Text("Cadastrar Dieta"),
+            content=ft.Column([
+                nome_field,
+                calorias_field,
+            ]),
+            actions=[
+                ft.ElevatedButton(
+                    text='Cadastrar',
+                    on_click=lambda e: inserir_dieta(nome_field.value, calorias_field.value, dialogos, page)
+                ),
+                ft.ElevatedButton(text='Cancelar', on_click=lambda e: page.overlay.remove(dialogos)),
+            ]
+        )
+
+        page.overlay.append(dialogos)
+        dialogos.open = True
+        page.update()
+
+    def inserir_dieta(nome, calorias, dialogos, page):
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT nome FROM dieta WHERE nome = %s", (nome,))
+            resultado = cursor.fetchone()
+
+            if resultado:
+                popup_erro = ft.AlertDialog(
+                    title=ft.Text("Erro"),
+                    content=ft.Text("Essa dieta já existe."),
+                    actions=[ft.ElevatedButton(text="Ok", on_click=lambda e: page.overlay.remove(popup_erro))]
+                )
+
+                page.update()
+                page.overlay.append(popup_erro)
+                popup_erro.open = True
+            else:
+                query = "INSERT INTO dieta (nome, calorias_totais) VALUES (%s, %s)"
+                values = (nome, calorias)
+                cursor.execute(query, values)
+                conn.commit()
+
+                popup_sucesso = ft.AlertDialog(
+                    title=ft.Text("Sucesso"),
+                    content=ft.Text("Dieta cadastrada com sucesso!"),
+                    actions=[ft.ElevatedButton(text="Ok", on_click=lambda e: page.overlay.remove(popup_sucesso))]
+                )
+                page.overlay.append(popup_sucesso)
+                popup_sucesso.open = True
+
+                page.overlay.remove(dialogos)
+
+        except mysql.connector.Error as err:
+            print(f"Erro: {err}")
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        page.update()
+
+    def atualizar_tabela(table):
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT nome, calorias_totais FROM dieta")
+            result = cursor.fetchall()
+
+            # Limpa as linhas existentes
+            table.rows.clear()
+
+            # Adiciona as novas linhas
+            for dieta in result:
+                nova_linha = ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(dieta[0])),
+                        ft.DataCell(ft.Text(str(dieta[1]))),
+                    ]
+                )
+                table.rows.append(nova_linha)
+
+        except mysql.connector.Error as err:
+            print(f"Erro: {err}")
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        # Atualiza a página para refletir a nova tabela
+        page.update()
+
+
     def page_nutro(page: ft.Page):
         page.clean()  # Limpa a página
 
+        def page_dietas():
+            try:
+                conn = mysql.connector.connect(
+                    host="localhost",
+                    user="root",
+                    password="acesso123",
+                    database="dietas",
+                    port="3306"
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT nome, calorias_totais FROM dieta")
+                result = cursor.fetchall()
+
+            except mysql.connector.Error as err:
+                print(f"Erro: {err}")
+                show_popup_cadastro_erro()
+
+            finally:
+                cursor.close()
+                conn.close()
+
+            if result:
+                boot1 = ft.ElevatedButton("Adicionar Dieta", icon=ft.icons.ADD, on_click=lambda e: cadastrar_dieta(page))
+                boot2 = ft.ElevatedButton("Apagar Dieta", icon=ft.icons.REMOVE, on_click=lambda e: print("Botão de Apagar Dieta clicado!"))
+                boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela(table))
+
+                title_container = ft.Container(
+                    content=ft.Text("Dietas", size=30, color="white"),
+                    bgcolor="#4F4F4F",
+                    padding=ft.padding.all(20),
+                    alignment=ft.alignment.center,
+                    border_radius=ft.border_radius.all(10)
+                )
+
+                table = ft.DataTable(
+                    columns=[
+                        ft.DataColumn(ft.Text("Nome")),
+                        ft.DataColumn(ft.Text("Calorias Totais")),
+                    ],
+                    rows=[]
+                )
+
+                # Adiciona as dietas à tabela
+                for dieta in result:
+                    nova_linha = ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(dieta[0])),
+                            ft.DataCell(ft.Text(str(dieta[1]))),
+                        ]
+                    )
+                    table.rows.append(nova_linha)
+
+                table_container = ft.Container(
+                    content=ft.Column(
+                        controls=[table],
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    height=300,
+                    bgcolor="#4F4F4F",
+                    border_radius=ft.border_radius.all(10),
+                    padding=ft.padding.all(10),
+                )
+
+                main_content = ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            title_container,
+                            table_container,
+                            ft.Row(
+                                controls=[
+                                    boot1,
+                                    boot2,
+                                    boot3,  # Adiciona o botão de atualização
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                            ),
+                        ]
+                    ),
+                    padding=ft.padding.all(20),
+                )
+
+            else:
+                # Caso não haja dietas
+                main_content = ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Nenhuma dieta a ver", size=20, color="#D3D3D3"),
+                            ft.ElevatedButton("Adicionar Dieta", icon=ft.icons.ADD, on_click=lambda e: print("Botão clicado!")),
+                        ]
+                    ),
+                    padding=ft.padding.all(20),
+                )
+
+            return main_content
+
         # Barra lateral simulada
-        sidebar = build_custom_navbar(page)
-
-        # Container principal onde o conteúdo será adicionado no futuro
-        main_content = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text("Nenhuma dieta a ver", size=20, color="#D3D3D3"),
-                    ft.ElevatedButton("Adicionar Dieta",icon=ft.icons.ADD, on_click=lambda e: print("Botão clicado!")),
-
-                ]
-            ),
-            padding=ft.padding.all(20),
-        )
+        sidebar = build_custom_navbar(page, page_dietas)
+        
+        # Adiciona conteúdo principal (inicialmente vazio, mas preenchido pelo retorno da função page_dietas)
+        main_content = page_dietas()
 
         # Layout da página com barra lateral e conteúdo
         page_layout = ft.Row(
@@ -491,7 +692,5 @@ def main(page: ft.Page):
         # Adiciona o layout à página
         page.add(page_layout)
         page.update()
-
-
 
 ft.app(target=main)
