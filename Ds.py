@@ -249,9 +249,12 @@ def menu(page: ft.Page):
                         cursor.execute("SELECT * FROM dieta")
                         rows = cursor.fetchall()
 
-                        diet_list = ft.Column([ft.Text(f'Dieta: {dieta[1]} - Descrição: {dieta[2]}') for dieta in rows])
-                        diet_container.controls.append(diet_list)
-                        page.update()
+                        diet_container.controls.clear()  
+
+                        for dieta in rows:
+                            diet_container.controls.append(ft.Text(f'Dieta: {dieta[1]} - Descrição: {dieta[2]}'))
+
+                    page.update()
                 except Error as e:
                     snack_bar = ft.SnackBar(ft.Text('Erro ao listar dietas.'))
                     page.snack_bar = snack_bar
@@ -260,13 +263,13 @@ def menu(page: ft.Page):
                 finally:
                     conn.close()
 
-        page.controls.clear()
+        page.control.clean()
         page.title = 'Listar Dietas'
         diet_container = ft.Column()
+
         page.add(diet_container)
 
         load_diets()
-        page.update()
 
     def excluir_dieta(page: ft.Page):
         def delete_dieta(nome_dieta):
@@ -362,7 +365,6 @@ def menu(page: ft.Page):
             title=ft.Text("Consultar Dieta"),
             content=ft.Column([
                 ft.TextField(label="Nome da dieta:", on_submit=lambda e: search_dieta(e.control.value)),
-                ft.Text('', id='dieta_details'),
             ]),
             actions=[
                 ft.ElevatedButton(text='Fechar', on_click=lambda e: dialog.close()),
@@ -374,27 +376,7 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-
     def view_diets(page: ft.Page):
-        def load_diets():
-            conn = create_connection()
-            if conn:
-                try:
-                    with conn.cursor() as cursor:
-                        cursor.execute("SELECT * FROM dieta")
-                        rows = cursor.fetchall()
-
-                        diet_list = ft.Column([ft.Text(f'Dieta: {dieta[1]}') for dieta in rows])
-                        diet_container.controls.append(diet_list)
-                        page.update()
-                except Error as e:
-                    snack_bar = ft.SnackBar(ft.Text('Ocorreu um erro ao exibir as dietas.'))
-                    page.snack_bar = snack_bar
-                    snack_bar.open = True
-                    print(f"Ocorreu um erro ao executar a consulta: {e}")
-                finally:
-                    conn.close()
-
         page.controls.clear()
         page.title = 'Lista de dietas'
         page.dark_theme = ft.Theme(color_scheme_seed='red')
@@ -409,9 +391,7 @@ def menu(page: ft.Page):
             ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
             ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta),
             ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
-            ft.FilledButton('Cadastrar paciente', on_click=pacient_registration),
         ]))
-        load_diets()
         page.update()
 
 ft.app(target=menu)
