@@ -3,7 +3,6 @@ import pymysql
 from pymysql import Error
 
 def create_connection():
-    """Cria uma conexão com o banco de dados MySQL."""
     try:
         connection = pymysql.connect(
             host='127.0.0.1',
@@ -11,14 +10,12 @@ def create_connection():
             password='acesso123',
             database='diets'
         )
-        print("Conexão bem-sucedida!")
         return connection
     except Error as e:
         print(f"Ocorreu um erro: {e}")
         return None
 
 def verify_user(nome, senha):
-    """Verifica se o usuário existe no banco de dados."""
     conn = create_connection()
     if conn:
         try:
@@ -35,50 +32,34 @@ def menu(page: ft.Page):
     page.title = "Acompanhamento de dietas"
     page.theme = ft.Theme(color_scheme_seed='yellow')
     page.add(ft.Text(value='Bem vindo!', size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLACK))
-    
-    radios_group = ft.RadioGroup(
-        value='Nutrólogo',
-        content=ft.Column(
-            controls=[
-                ft.Radio(value="Nutrólogo", label="Nutrólogo"),
-                ft.Radio(value='Paciente', label='Paciente')
-            ]
-        )
-    )
-    
-    name_field = ft.TextField(label='Nome:', keyboard_type=ft.KeyboardType.TEXT, text_align=ft.TextAlign.LEFT)
-    password_field = ft.TextField(label='Senha:', password=True, keyboard_type=ft.KeyboardType.NUMBER,text_align=ft.TextAlign.LEFT)
 
-    def add_medic(e):
-        global R, P, E
+    # Campos de entrada
+    name_field = ft.TextField(label='Nome:', keyboard_type=ft.KeyboardType.TEXT, text_align=ft.TextAlign.LEFT)
+    password_field = ft.TextField(label='Senha:', password=True, keyboard_type=ft.KeyboardType.NUMBER, text_align=ft.TextAlign.LEFT)
+
+    def add_user(e):
+        tipo_user = ft.RadioGroup(
+            value='nutrólogo',
+            content=ft.Column(
+                controls=[
+                    ft.Radio(value="nutrólogo", label="Nutrólogo"),
+                    ft.Radio(value='paciente', label='Paciente')
+                ]
+            )
+        )
+        
         R = ft.TextField(label="Digite seu nome:", text_align=ft.TextAlign.LEFT)
-        P = ft.TextField(label='Digite sua senha:', password=True, keyboard_type=ft.KeyboardType.EMAIL)
+        P = ft.TextField(label='Digite sua senha:', password=True, keyboard_type=ft.KeyboardType.NUMBER)
         E = ft.TextField(label='Digite seu email:', text_align=ft.TextAlign.LEFT)
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Cadastro de nutrólogo"),
-            content=ft.Column([R, P, E]),
-            actions=[ft.ElevatedButton(text='Cadastrar nutrólogo', on_click=doctor_registration)],
+            title=ft.Text("Cadastro de Usuário"),
+            content=ft.Column([R, P, E, tipo_user]),
+            actions=[ft.ElevatedButton(text='Cadastrar', on_click=lambda e: user_registration(R.value, P.value, E.value, tipo_user.value))],
         )
 
         page.overlay.append(dialog)
         dialog.open = True
-        page.update()
-
-    def add_pacient(e):
-        global T, W, S
-        T = ft.TextField(label='Digite seu nome:', text_align=ft.TextAlign.LEFT)
-        W = ft.TextField(label='Digite seu email:', keyboard_type=ft.KeyboardType.EMAIL)
-        S = ft.TextField(label='Digite sua senha:', password=True, text_align=ft.TextAlign.LEFT)
-
-        dialogo = ft.AlertDialog(
-            title=ft.Text("Cadastro de paciente"),
-            content=ft.Column([T, W, S]),
-            actions=[ft.ElevatedButton(text='Cadastrar paciente', on_click=pacient_registration)],
-        )
-
-        page.overlay.append(dialogo)
-        dialogo.open = True
         page.update()
 
     def warning_error():
@@ -101,25 +82,17 @@ def menu(page: ft.Page):
             page.update()
             return
         
-        if verify_user(nome, senha) and radios_group.value=='Nutrólogo':
-            second_page(page)
-        elif verify_user(nome, senha) and radios_group.value=='Paciente':
-            third_page(page)
+        if verify_user(nome, senha):
+            second_page(page, nome)
         else:
             warning_error()
 
     send_button = ft.ElevatedButton(text='Enviar', icon=ft.icons.SEND, on_click=on_send_click)
-    add_medic_button = ft.ElevatedButton(text='Cadastrar novo nutrólogo', icon=ft.icons.ADD, on_click=add_medic)
-    add_pacient_button = ft.ElevatedButton(text='Cadastrar novo paciente', icon=ft.icons.ADD,  on_click=add_pacient)
+    add_user_button = ft.ElevatedButton(text='Cadastrar novo usuário', icon=ft.icons.ADD, on_click=add_user)
     
-    page.add(name_field, password_field, send_button, add_medic_button, add_pacient_button, radios_group)
+    page.add(name_field, password_field, send_button, add_user_button)
 
-    def doctor_registration(e):
-        global R, P, E
-        nome = R.value.strip()
-        senha = P.value.strip()
-        email = E.value.strip()
-
+    def user_registration(nome, senha, email, tipo):
         if not nome or not senha or not email:
             snack_bar = ft.SnackBar(ft.Text("Por favor, preencha todos os campos."))
             page.snack_bar = snack_bar
@@ -132,15 +105,15 @@ def menu(page: ft.Page):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO usuario (nome, senha, email, tipo) VALUES (%s, %s, %s, 'nutrólogo')",
-                        (nome, senha, email)
+                        "INSERT INTO usuario (nome, senha, email, tipo) VALUES (%s, %s, %s, %s)",
+                        (nome, senha, email, tipo)
                     )
                     conn.commit()
-                    snack_bar = ft.SnackBar(ft.Text("Nutrólogo cadastrado com sucesso!"))
+                    snack_bar = ft.SnackBar(ft.Text(f"{tipo.capitalize()} cadastrado com sucesso!"))
                     page.snack_bar = snack_bar
                     snack_bar.open = True
             except Error as e:
-                snack_bar = ft.SnackBar(ft.Text("Erro ao cadastrar nutrólogo."))
+                snack_bar = ft.SnackBar(ft.Text(f"Erro ao cadastrar {tipo}."))
                 page.snack_bar = snack_bar
                 snack_bar.open = True
                 print(f"Ocorreu um erro ao executar a consulta: {e}")
@@ -148,41 +121,7 @@ def menu(page: ft.Page):
                 conn.close()
             page.update()
 
-    def pacient_registration(e):
-        global T, W, S
-        nome = T.value.strip()
-        senha = W.value.strip()
-        email = S.value.strip()
-
-        if not nome or not senha or not email:
-            snack_bar = ft.SnackBar(ft.Text("Por favor, preencha todos os campos."))
-            page.snack_bar = snack_bar
-            snack_bar.open = True
-            page.update()
-            return
-
-        conn = create_connection()
-        if conn:
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        "INSERT INTO usuario (nome, senha, email, tipo) VALUES (%s, %s, %s, 'paciente')",
-                        (nome, senha, email)
-                    )
-                    conn.commit()
-                    snack_bar = ft.SnackBar(ft.Text("Paciente cadastrado com sucesso!"))
-                    page.snack_bar = snack_bar
-                    snack_bar.open = True
-            except Error as e:
-                snack_bar = ft.SnackBar(ft.Text("Erro ao cadastrar paciente."))
-                page.snack_bar = snack_bar
-                snack_bar.open = True
-                print(f"Ocorreu um erro ao executar a consulta: {e}")
-            finally:
-                conn.close()
-            page.update()
-
-    def cadastrar_dieta(page: ft.Page):
+    def cadastrar_dieta(e):
         nome_field = ft.TextField(label="Nome da dieta:")
         descricao_field = ft.TextField(label="Descrição:")
         calorias_field = ft.TextField(label="Calorias:", keyboard_type=ft.KeyboardType.NUMBER)
@@ -240,87 +179,59 @@ def menu(page: ft.Page):
                 conn.close()
         page.update()
 
-    def view_infos_paciente(page: ft.Page, nome_paciente: str):
-        conn = create_connection()
-        if conn:
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT nome, email FROM usuario WHERE nome = %s", (nome_paciente,))
-                    paciente = cursor.fetchone()
-                    if paciente:
-                        nome, email = paciente
-                        info_text = f'Nome: {nome}\nEmail: {email}'
-                    else:
-                        info_text = "Paciente não encontrado."
-            except Error as e:
-                info_text = "Erro ao buscar informações do paciente."
-                print(f"Ocorreu um erro ao executar a consulta: {e}")
-            finally:
-                conn.close()
-        else:
-            info_text = "Erro na conexão com o banco de dados."
-
-        page.controls.clear()
-        page.title = 'Informações do Paciente'
-        page.add(ft.Text(info_text, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLACK))
-        page.add(ft.ElevatedButton(text='Voltar', on_click=lambda e: second_page(page)))
-        page.update()
-
-    def third_page(page: ft.Page):
-        page.controls.clear()
-        page.title = 'Menu do Paciente'
-        page.dark_theme = ft.Theme(color_scheme_seed='red')
-        page.padding = ft.Row([10, 10])
-
-        nome_paciente = 'NomeDoPaciente'  # Substitua com o nome real do paciente logado
-        
-        page.add(ft.Column([
-            ft.FilledButton('Visualizar Informações do Paciente', on_click=lambda e: view_infos_paciente(page, nome_paciente)),
-            ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta),
-            ft.FilledButton('Listar dietas', on_click=listar_dieta),
-            ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
-            ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta),
-            ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
-        ]))
-        page.update()
-
-
-    def listar_dieta(page: ft.Page):
+    def listar_dieta(e):
         diet_table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Nome")),
                 ft.DataColumn(ft.Text("Descrição")),
             ]
         )
+        
         conn = create_connection()
         if conn:
             try:
                 with conn.cursor() as cursor:
-                        cursor.execute("SELECT * FROM dieta")
-                        rows = cursor.fetchall()
-                        diet_table.rows.clear()
-                        for dieta in rows:
-                            diet_table.rows.append(
-                                ft.DataRow(cells=[
-                                    ft.DataCell(ft.Text(dieta[1])),
-                                    ft.DataCell(ft.Text(dieta[2])),
-                                ])
-                            )
-                        page.update()
+                    cursor.execute("SELECT * FROM dieta")
+                    rows = cursor.fetchall()
+                    diet_table.rows.clear()
+                    
+                    for dieta in rows:
+                        diet_table.rows.append(
+                            ft.DataRow(cells=[
+                                ft.DataCell(ft.Text(dieta[1])),
+                                ft.DataCell(ft.Text(dieta[2])),
+                            ])
+                        )
+
+                table_container = ft.Container(
+                    content=ft.Column(
+                        controls=[diet_table],
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    height=300,
+                    border_radius=ft.border_radius.all(10),
+                    padding=ft.padding.all(10),
+                )
+
+                page.controls.clear()
+                page.add(table_container)
+                page.update()
+            
             except Exception as e:
-                    snack_bar = ft.SnackBar(ft.Text('Erro ao listar dietas.'))
-                    page.snack_bar = snack_bar
-                    snack_bar.open = True
-                    print(f"Ocorreu um erro ao executar a consulta: {e}")
+                snack_bar = ft.SnackBar(ft.Text('Erro ao listar dietas.'))
+                page.snack_bar = snack_bar
+                snack_bar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            
             finally:
-                    conn.close()
+                conn.close()
 
-        page.control.clean()
-        page.title = 'Listar Dietas'
-        page.add(diet_table)
-        ft.app(target=listar_dieta)
+            page.controls.clear()
+            page.title = 'Listar Dietas'
+            page.add(diet_table)
+            ft.app(target=listar_dieta)
 
-    def excluir_dieta(page: ft.Page):
+    def excluir_dieta(e):
         def delete_dieta(nome_dieta):
             conn = create_connection()
             if conn:
@@ -351,7 +262,7 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-    def atualizar_dieta(page: ft.Page):
+    def atualizar_dieta(e):
         def update_dieta(nome_dieta, nova_descricao):
             conn = create_connection()
             if conn:
@@ -385,7 +296,7 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-    def consultar_dieta(page: ft.Page):
+    def consultar_dieta(e):
         def search_dieta(nome_dieta):
             conn = create_connection()
             if conn:
@@ -419,16 +330,12 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-    def second_page(page: ft.Page):
+    def second_page(page: ft.Page, nome_paciente: str):
         page.controls.clear()
-        page.title = 'Lista de dietas'
-        page.dark_theme = ft.Theme(color_scheme_seed='red')
-        page.padding = ft.Row([10, 10])
+        page.title = 'Menu do Paciente'
         
-        diet_container = ft.Column()
-        page.add(diet_container)
-
         page.add(ft.Column([
+            ft.Text(f'Bem-vindo, {nome_paciente}!', size=20),
             ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta),
             ft.FilledButton('Listar dietas', on_click=listar_dieta),
             ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
