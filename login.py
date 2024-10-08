@@ -464,6 +464,71 @@ def main(page: ft.Page):
         )
 
         return sidebar_frame
+    def deletar_dieta(page: ft.Page):
+        nome_field = ft.TextField(label="Nome da dieta a ser deletada:")
+
+        dialogo_deletar = ft.AlertDialog(
+            title=ft.Text("Deletar Dieta"),
+            content=ft.Column([
+                nome_field,
+            ]),
+            actions=[
+                ft.ElevatedButton(
+                    text='Deletar',
+                    on_click=lambda e: remover_dieta(nome_field.value, dialogo_deletar, page)
+                ),
+                ft.ElevatedButton(text='Cancelar', on_click=lambda e: page.overlay.remove(dialogo_deletar)),
+            ]
+        )
+
+        page.overlay.append(dialogo_deletar)
+        dialogo_deletar.open = True
+        page.update()
+
+    def remover_dieta(nome, dialogo_deletar, page):
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT nome FROM dieta WHERE nome = %s", (nome,))
+            resultado = cursor.fetchone()
+
+            if resultado:
+                cursor.execute("DELETE FROM dieta WHERE nome = %s", (nome,))
+                conn.commit()
+
+                popup_sucesso = ft.AlertDialog(
+                    title=ft.Text("Sucesso"),
+                    content=ft.Text("Dieta deletada com sucesso!"),
+                    actions=[ft.ElevatedButton(text="Ok", on_click=lambda e: page.overlay.remove(popup_sucesso))]
+                )
+                page.overlay.append(popup_sucesso)
+                popup_sucesso.open = True
+                page.overlay.remove(dialogo_deletar)
+
+            else:
+                popup_erro = ft.AlertDialog(
+                    title=ft.Text("Erro"),
+                    content=ft.Text("Dieta não encontrada."),
+                    actions=[ft.ElevatedButton(text="Ok", on_click=lambda e: page.overlay.remove(popup_erro))]
+                )
+                page.overlay.append(popup_erro)
+                popup_erro.open = True
+
+        except mysql.connector.Error as err:
+            print(f"Erro: {err}")
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        page.update()
 
     def cadastrar_dieta(page: ft.Page):
         nome_field = ft.TextField(label="Nome da dieta:")
@@ -600,7 +665,7 @@ def main(page: ft.Page):
 
             if result:
                 boot1 = ft.ElevatedButton("Adicionar Dieta", icon=ft.icons.ADD, on_click=lambda e: cadastrar_dieta(page))
-                boot2 = ft.ElevatedButton("Apagar Dieta", icon=ft.icons.REMOVE, on_click=lambda e: print("Botão de Apagar Dieta clicado!"))
+                boot2 = ft.ElevatedButton("Apagar Dieta", icon=ft.icons.REMOVE, on_click=lambda e: deletar_dieta(page))
                 boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela(table))
 
                 title_container = ft.Container(
@@ -671,12 +736,114 @@ def main(page: ft.Page):
                 )
 
             return main_content
+        
+        def page_alimentos():
+            try:
+                conn = mysql.connector.connect(
+                    host="localhost",
+                    user="root",
+                    password="acesso123",
+                    database="dietas",
+                    port="3306"
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT nome, calorias, proteinas, carboidratos, gorduras FROM alimento")
+                result = cursor.fetchall()
+
+            except mysql.connector.Error as err:
+                print(f"Erro: {err}")
+                show_popup_cadastro_erro()
+
+            finally:
+                cursor.close()
+                conn.close()
+
+            if result:
+                boot1 = ft.ElevatedButton("Adicionar Alimento", icon=ft.icons.ADD, on_click=lambda e: "cadastrar_alimento(page)")
+                boot2 = ft.ElevatedButton("Apagar Alimento", icon=ft.icons.REMOVE, on_click=lambda e: "deletar_alimento(page)")
+                boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela(table))
+
+                title_container = ft.Container(
+                    content=ft.Text("Alimentos", size=30, color="white"),
+                    bgcolor="#4F4F4F",
+                    padding=ft.padding.all(20),
+                    alignment=ft.alignment.center,
+                    border_radius=ft.border_radius.all(10)
+                )
+
+                table = ft.DataTable(
+                    columns=[
+                        ft.DataColumn(ft.Text("Nome")),
+                        ft.DataColumn(ft.Text("Calorias")),
+                        ft.DataColumn(ft.Text("Proteínas")),
+                        ft.DataColumn(ft.Text("Carboidratos")),
+                        ft.DataColumn(ft.Text("Gorduras")),
+                    ],
+                    rows=[]
+                )
+
+                # Adiciona os alimentos à tabela
+                for alimento in result:
+                    nova_linha = ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(alimento[0])),
+                            ft.DataCell(ft.Text(str(alimento[1]))),
+                            ft.DataCell(ft.Text(str(alimento[2]))),
+                            ft.DataCell(ft.Text(str(alimento[3]))),
+                            ft.DataCell(ft.Text(str(alimento[4]))),
+                        ]
+                    )
+                    table.rows.append(nova_linha)
+
+                table_container = ft.Container(
+                    content=ft.Column(
+                        controls=[table],
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    height=300,
+                    bgcolor="#4F4F4F",
+                    border_radius=ft.border_radius.all(10),
+                    padding=ft.padding.all(10),
+                )
+
+                main_content = ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            title_container,
+                            table_container,
+                            ft.Row(
+                                controls=[
+                                    boot1,
+                                    boot2,
+                                    boot3,  # Adiciona o botão de atualização
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                            ),
+                        ]
+                    ),
+                    padding=ft.padding.all(20),
+                )
+
+            else:
+                # Caso não haja alimentos
+                main_content = ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Nenhum alimento a ver", size=20, color="#D3D3D3"),
+                            ft.ElevatedButton("Adicionar Alimento", icon=ft.icons.ADD, on_click=lambda e: print("Botão clicado!")),
+                        ]
+                    ),
+                    padding=ft.padding.all(20),
+                )
+
+            return main_content
 
         # Barra lateral simulada
-        sidebar = build_custom_navbar(page, page_dietas)
-        
-        # Adiciona conteúdo principal (inicialmente vazio, mas preenchido pelo retorno da função page_dietas)
-        main_content = page_dietas()
+# Barra lateral simulada
+        sidebar = build_custom_navbar(page, page_alimentos)
+
+        # Adiciona conteúdo principal (inicialmente vazio, mas preenchido pelo retorno da função page_alimentos)
+        main_content = page_alimentos()
 
         # Layout da página com barra lateral e conteúdo
         page_layout = ft.Row(
