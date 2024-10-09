@@ -184,7 +184,6 @@ def menu(page: ft.Page):
 
     def cadastrar_dieta(page: ft.Page):
         nome_field = ft.TextField(label="Nome da dieta:")
-        descricao_field = ft.TextField(label="Descrição:")
         calorias_field = ft.TextField(label="Calorias:", keyboard_type=ft.KeyboardType.NUMBER)
         proteinas_field = ft.TextField(label="Proteínas:", keyboard_type=ft.KeyboardType.NUMBER)
         carboidratos_field = ft.TextField(label="Carboidratos:", keyboard_type=ft.KeyboardType.NUMBER)
@@ -194,7 +193,6 @@ def menu(page: ft.Page):
             title=ft.Text("Cadastrar Dieta"),
             content=ft.Column([
                 nome_field,
-                descricao_field,
                 calorias_field,
                 proteinas_field,
                 carboidratos_field,
@@ -205,7 +203,6 @@ def menu(page: ft.Page):
                     text='Cadastrar',
                     on_click=lambda e: save_dieta(
                         nome_field.value,
-                        descricao_field.value,
                         calorias_field.value,
                         proteinas_field.value,
                         carboidratos_field.value,
@@ -218,14 +215,14 @@ def menu(page: ft.Page):
         dialogos.open = True
         page.update()
 
-    def save_dieta(nome, descricao, calorias, proteinas, carboidratos, gorduras):
+    def save_dieta(nome, calorias, proteinas, carboidratos, gorduras):
         conn = create_connection()
         if conn:
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO dieta (nome, descricao, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s, %s)",
-                        (nome, descricao, calorias, proteinas, carboidratos, gorduras)
+                        "INSERT INTO dieta (nome, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s)",
+                        (nome, calorias, proteinas, carboidratos, gorduras)
                     )
                     conn.commit()
                     snack_bar = ft.SnackBar(ft.Text(f'Dieta "{nome}" cadastrada com sucesso!'))
@@ -272,53 +269,61 @@ def menu(page: ft.Page):
         page.dark_theme = ft.Theme(color_scheme_seed='red')
         page.padding = ft.Row([10, 10])
 
-        nome_paciente = 'NomeDoPaciente'  # Substitua com o nome real do paciente logado
+        nome_paciente = 'NomeDoPaciente'
         
         page.add(ft.Column([
             ft.FilledButton('Visualizar Informações do Paciente', on_click=lambda e: view_infos_paciente(page, nome_paciente)),
-            ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta),
             ft.FilledButton('Listar dietas', on_click=listar_dieta),
-            ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
-            ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta),
             ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
         ]))
         page.update()
 
-
-    def listar_dieta(page: ft.Page):
+    def listar_dieta(e):
         diet_table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Nome")),
-                ft.DataColumn(ft.Text("Descrição")),
+                ft.DataColumn(ft.Text("Calorias totais")),
             ]
         )
         conn = create_connection()
         if conn:
             try:
                 with conn.cursor() as cursor:
-                        cursor.execute("SELECT * FROM dieta")
-                        rows = cursor.fetchall()
-                        diet_table.rows.clear()
-                        for dieta in rows:
-                            diet_table.rows.append(
-                                ft.DataRow(cells=[
-                                    ft.DataCell(ft.Text(dieta[1])),
-                                    ft.DataCell(ft.Text(dieta[2])),
-                                ])
-                            )
-                        page.update()
+                    cursor.execute("SELECT * FROM dieta")
+                    rows = cursor.fetchall()
+                    diet_table.rows.clear()
+                    
+                    for dieta in rows:
+                        diet_table.rows.append(
+                            ft.DataRow(cells=[
+                                ft.DataCell(ft.Text(dieta[1])),
+                                ft.DataCell(ft.Text(dieta[2])),
+                            ])
+                        )
+                table_container = ft.Container(
+                    content=ft.Column(
+                        controls=[diet_table],
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    height=300,
+                    border_radius=ft.border_radius.all(10),
+                    padding=ft.padding.all(10),
+                )
+                page.controls.clear()
+                page.add(table_container)
+                page.update()
             except Exception as e:
-                    snack_bar = ft.SnackBar(ft.Text('Erro ao listar dietas.'))
-                    page.snack_bar = snack_bar
-                    snack_bar.open = True
-                    print(f"Ocorreu um erro ao executar a consulta: {e}")
+                snack_bar = ft.SnackBar(ft.Text('Erro ao listar dietas.'))
+                page.snack_bar = snack_bar
+                snack_bar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
             finally:
-                    conn.close()
-
-        page.control.clean()
-        page.title = 'Listar Dietas'
-        page.add(diet_table)
-        ft.app(target=listar_dieta)
+                conn.close()
+            
+            page.controls.clear()
+            page.title = 'Listar Dietas'
+            page.add(diet_table)
+            ft.app(target=listar_dieta)
 
     def excluir_dieta(page: ft.Page):
         def delete_dieta(nome_dieta):
@@ -394,7 +399,7 @@ def menu(page: ft.Page):
                         cursor.execute("SELECT * FROM dieta WHERE nome = %s", (nome_dieta,))
                         dieta = cursor.fetchone()
                         if dieta:
-                            detail_text = f'Dieta: {dieta[1]}\nDescrição: {dieta[2]}'
+                            detail_text = f'Dieta: {dieta[1]}'
                         else:
                             detail_text = "Dieta não encontrada."
                         detail_label.value = detail_text
