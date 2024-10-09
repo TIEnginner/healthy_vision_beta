@@ -70,7 +70,7 @@ def fetch_books2(id_dieta):
     cursor = conn.cursor()
     
     # Primeiro, busca todas as informações da tabela refeição
-    cursor.execute("SELECT id, nome, horario, id_alimento, quantia FROM refeiçao WHERE id_criador=%s AND apagado = nao", (id_dieta,))
+    cursor.execute("SELECT id, nome, horario, id_alimento, quantia,typo,preparo FROM refeiçao WHERE id_criador=%s AND apagado = nao", (id_dieta,))
     dados_refeicoes = cursor.fetchall()
     
     refeicoes_com_nomes = []
@@ -93,29 +93,45 @@ def fetch_books2(id_dieta):
     return refeicoes_com_nomes
     
 
-def adicionar_refeiçao(nome,calorias,proteina,carboidratos,gorduras,typo_pesagem):
+def adicionar_alimento(nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,id_criador):
         conn = conectar_bd()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT INTO refeiçao ()
-                VALUES (%s, %s, %s, %s,%s,%s,%s)
-            ''', (nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,'nao'))
+                INSERT INTO alimentos (nome,calorias,proteinas,carboidratos,gorduras,tipo_pesagem,apagado,quantia)
+                VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s)
+            ''', (nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,id_criador,'nao',quantia))
             conn.commit()
-            popup('Refeição adicionado com sucesso', title='Sucesso')
+            popup('alimento adicionado com sucesso', title='Sucesso')
         except Exception as e:
-            popup(f"Erro ao adicionar refeição: {e}", title='Erro')
+            popup(f"Erro ao adicionar alimento: {e}", title='Erro')
         finally:
             conn.close()
  
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def tela_adicionar_alimento():
+    ty = ['gramas','ml']
+    return [[Text('Nome'),Input(key = 'nome')],
+            [Text('Calorias'),Spin([i for i in range(1, 10000)], initial_value=1, key='calos')],
+            [Text('Proteinas'),Spin([i for i in range(1, 10000)], initial_value=1, key='protes')],
+            [Text('Caboidrados'),Spin([i for i in range(1, 10000)], initial_value=1, key='cabos')],
+            [Text('Gorduras'),Spin([i for i in range(1, 10000)], initial_value=1, key='gordura')],
+            [Text('Tipo de pesagem'),Combo(ty, default_value=ty[0], readonly=True, key='typo')],
+            [Text('Quantia'),Spin([i for i in range(1, 1000)], initial_value=1, key='quantia')],
+            [Button("Adicionar", font=("Arial", 12)), Button("Remover", font=("Arial", 12)),Button('Voltar')]]
+    
+    
+    
+#def  rastrear_alimentos(id_criador):
+   # pass
+
 
 def tela_inicial_nutrologo():
     return [
-        [Menu(['Conta', ['Excluir conta '], ['Ajuda', ['Sobre']]])]
+        [Menu(['Conta', ['Excluir conta '], ['Ajuda', ['Sobre']]])],
         [Text('           Menu')],
         [Button('Gerenciamento de dietas',key = 'dietas'),Button('Gerenciamento de conta', key='conta')],
-        [Button('Abrir loja')]
+        [Button('adicionar alimento')]
       
 
     ]
@@ -128,21 +144,21 @@ def tela_EXCLUIR_conta():
 
 def Tela_adicionar_dieta(id_dieta):
     dados = fetch_books2(id_dieta)  # Usando a função fetch_books para obter os livros
-    cabecalhos = ['Nome do alimento ','Horario da refeiçao ', 'Alimento', 'Porçao']
+    cabecalhos = ['Nome do alimento ','Horario da refeiçao ', 'Alimento', 'Porçao','Pesagem da refeiçao','Descrisao']
     tree_data = gerar_dados_estruturados(dados)
-    alimentos = ['mamao']
+    alimentos = rastrear_alimentos(id_criador)
     layout = [
         [Button("Salvar", font=("Arial", 12)),Button("Voltar", font=("Arial", 12))],
         [Text('                                                                 Vida Saudavel começa com sua criaçao entao Crie e imagine', font=("Arial", 14))],
         [Text('Nome da Dieta '), Input(key='nome_dieta')],
         [Text('Nome do Criador '), Input(key='autor')],
         [Text('Email do criador'), Input(key='email')],
-        [Text('       Adicione e gerencie as refeiçaoes abaixo:')]
+        [Text('       Adicione e gerencie as refeiçaoes abaixo:')],
         [Text('Nome da refeiçao'), Input(key='nome_refeiçao')],
         [Text('Horario da Refeiçao'), Input(key='localizacao')],
-        [Text('Alimento'), Combo(alimentos, default_value=alimentos[0], readonly=True, key='idioma')],
-        [Text('Tipo'),InputText('', key='typo', disabled=True, size=(30, 1)),Text('Calorias'),InputText('', key='calorias', disabled=True, size=(30, 1)),Text('Proteinas'),InputText('', key='proteinas', disabled=True, size=(30, 1)),Text('Carboidratos'),InputText('', key='carboidratos', disabled=True, size=(30, 1)),Text('Gorduras'),InputText('', key='gorduras', disabled=True, size=(30, 1))]
-        [Text('Peso ou quantidade'), Input(key='')],
+        [Text('Alimento'), Combo(alimentos, default_value=alimentos[0], readonly=True, key='alimento')],
+        [Text('Tipo '),InputText('', key='typo', disabled=True, size=(30, 1)),Text('Calorias'),InputText('', key='calorias', disabled=True, size=(30, 1)),Text('Proteinas'),InputText('', key='proteinas', disabled=True, size=(30, 1)),Text('Carboidratos'),InputText('', key='carboidratos', disabled=True, size=(30, 1)),Text('Gorduras'),InputText('', key='gorduras', disabled=True, size=(30, 1))],
+        [Text('Porçao'),  Spin([i for i in range(1, 100)], initial_value=1, key='quantia'),Text('Typo de pesagem para a refeiçao')],
         [Text('Descriçao ou  preparo')],
         [Multiline(size=(30, 5), key='textbox')],
         [Button("Adicionar", font=("Arial", 12)), Button("Remover", font=("Arial", 12)), Button("Alterar", font=("Arial", 12)), Button('Recuperar dados', font=("Arial", 12))],
@@ -420,16 +436,18 @@ def adicionar_usuario(nome, email,user,senha,tipo):
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT INTO usuario_dados (nome, email,user,senha,tipo,apagados)
+                INSERT INTO usuario_dados (nome, email,user,senha,tipo,apagado)
                 VALUES (%s,%s,%s,%s,%s,%s)
             ''', (nome, email,user,senha,tipo,'nao'))
             conn.commit()
             ultimo_id = cursor.lastrowid
             return ultimo_id
             cursor.close()
-
+       
         except Exception as e:
             popup(f"Erro ao tendar abrir uma dieta: {e}", title='Erro')
+        else:
+                                 popup('Usuario cadastrado com sucesso')
         finally:
 
             conn.close()
@@ -438,7 +456,7 @@ def adicionar_usuario(nome, email,user,senha,tipo):
 
 def tela_login():
     return[
-        [Menu(['Ajuda',['Restaurar conta','Recuperar senha']])],
+        [Menu([['Ajuda',['Restaurar conta','Recuperar senha']],['Sobre',['Empresa: Wel Combani','Numero: 40028922']]])],
         [Text('Usuario')],
         [Input(key='-nome-')],
         [Text('Senha')],
@@ -451,11 +469,11 @@ def tela_login():
 def tela_cadastro():
       return [
         [Text('Nome')],
-        [Input(key = 'nome')]
+        [Input(key = 'nome')],
         [ Text('Email')],
         [ Input(key='email')],
-        [Text('User')]
-        [Input(key = 'user')]
+        [Text('User')],
+        [Input(key = 'user')],
         [ Text('Senha')],
         [ Input(key='-senha-', password_char='*')],
         [ Text('Repetir Senha')],
@@ -549,8 +567,18 @@ def tela_dietas():
     return layout
 
 
-def ver_refeiçao_em_dieta():
+def ver_refeiçao_em_dieta(id_dieta):
     pass
+    
+
+
+
+    # Adicionar a coluna com rolagem horizontal e vertical
+ 
+    
+    
+
+
     
 def tela_dieta():
     pass
@@ -562,8 +590,136 @@ def tela_dieta():
 
 
 
-def extruturar_dieta(id):
-    pass
+
+
+
+
+
+def calcular_nutrientes(quantia, tipo_pesagem, calorias, proteinas, carboidratos, gorduras):
+    fator = quantia / 100 if tipo_pesagem == "gramas" or tipo_pesagem == "ml" else quantia
+    calorias_ajustadas = calorias * fator
+    proteinas_ajustadas = proteinas * fator
+    carboidratos_ajustados = carboidratos * fator
+    gorduras_ajustadas = gorduras * fator
+    return calorias_ajustadas, proteinas_ajustadas, carboidratos_ajustados, gorduras_ajustadas
+
+# Função para buscar os dados da dieta e refeições no banco de dados
+def pegar_dados_dieta(id_dieta):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+
+    # Consulta a dieta na tabela dieta
+    cursor.execute("SELECT id, nome, criador, email FROM dieta WHERE id = %s AND apagado = 'nao'", (id_dieta,))
+    dados_dieta = cursor.fetchone()
+
+    if not dados_dieta:
+        conn.close()
+        return None  # Retorna None se não encontrar a dieta
+
+    # Consulta as refeições relacionadas à dieta
+    cursor.execute("SELECT id, nome, horario, id_alimento, quantia, typo, preparo FROM refeiçao WHERE id_dieta = %s AND apagado = 'nao'", (id_dieta,))
+    refeicoes = cursor.fetchall()
+
+    # Lista para armazenar as informações estruturadas
+    lista_alimentos = []
+
+    # Processar cada refeição
+    for refeicao in refeicoes:
+        id_refeicao, nome_refeicao, horario, id_alimento, quantia, typo_pesagem, preparo = refeicao
+
+        # Buscar o nome e informações nutricionais do alimento correspondente
+        cursor.execute("SELECT nome, calorias, proteinas, carboidratos, gorduras, tipo_pesagem FROM alimentos WHERE id = %s", (id_alimento,))
+        alimento_info = cursor.fetchone()
+
+        if alimento_info:
+            nome_alimento, calorias, proteinas, carboidratos, gorduras, tipo_pesagem_alimento = alimento_info
+
+            # Calcular os nutrientes ajustados de acordo com a quantia e tipo de pesagem
+            calorias_ajustadas, proteinas_ajustadas, carboidratos_ajustados, gorduras_ajustadas = calcular_nutrientes(
+                quantia, typo_pesagem, calorias, proteinas, carboidratos, gorduras
+            )
+
+            # Estruturar os dados em um dicionário
+            alimento_dict = {
+                'nome': nome_alimento,
+                'horario': horario,
+                'calorias': calorias_ajustadas,
+                'proteinas': proteinas_ajustadas,
+                'carboidratos': carboidratos_ajustados,
+                'gorduras': gorduras_ajustadas,
+                'quantia': quantia,  # Inclui a quantia aqui
+                'tipo_pesagem': typo_pesagem,
+                'preparo': preparo
+            }
+
+            # Adicionar à lista de alimentos
+            lista_alimentos.append(alimento_dict)
+
+    conn.close()
+
+    # Retornar os dados da dieta e a lista de alimentos processada
+    return {
+        'nome_dieta': dados_dieta[1],
+        'criador': dados_dieta[2],
+        'email': dados_dieta[3],
+        'alimentos': lista_alimentos
+    }
+
+# Função para mostrar os dados da dieta no PySimpleGUI
+def mostrar_dieta(id_dieta):
+    # Pegar os dados da dieta e das refeições
+    dados_dieta = pegar_dados_dieta(id_dieta)
+
+    if not dados_dieta:
+        sg.popup('Dieta não encontrada!', title='Erro')
+        return
+
+    # Dados da dieta
+    nome_dieta = dados_dieta['nome_dieta']
+    criador = dados_dieta['criador']
+    email = dados_dieta['email']
+    refeicoes = dados_dieta['alimentos']  # Lista de refeições e nutrientes
+    calorias_t = 1
+
+    # Layout principal com informações da dieta
+    layout = [
+        [sg.Text('Dieta: ' + nome_dieta, font=("Arial", 20), justification='center')],
+        [sg.Text('Criador: ' + criador, font=("Arial", 16), justification='center')],
+        [sg.Text('Email: ' + email, font=("Arial", 16), justification='center')],
+        [Text('Calorias totais: ' + calorias_t, font=("Arial", 16), justification='center')]
+        [sg.Text('--- Refeições ---', font=("Arial", 18), justification='center', pad=(0, 20))]
+    ]
+
+    # Layout de refeições a ser adicionado na coluna rolável
+    refeicoes_layout = []
+    for refeicao in refeicoes:
+        refeicoes_layout.append([sg.Text(f"Refeição: {refeicao['nome']}", font=("Arial", 14))])
+        refeicoes_layout.append([sg.Text(f"Horário: {refeicao['horario']}", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Alimento: {refeicao['nome']}", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Calorias: {refeicao['calorias']:.2f} Kcal", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Proteínas: {refeicao['proteinas']:.2f} g", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Carboidratos: {refeicao['carboidratos']:.2f} g", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Gorduras: {refeicao['gorduras']:.2f} g", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text(f"Quantia: {refeicao['quantia']} {refeicao['tipo_pesagem']}", font=("Arial", 12))])  # Mostra quantia
+        refeicoes_layout.append([sg.Text(f"Preparo: {refeicao['preparo']}", font=("Arial", 12))])
+        refeicoes_layout.append([sg.Text('---------------------------------------------', font=("Arial", 12))])
+
+    # Adicionar a coluna com rolagem vertical
+    layout.append(
+        [sg.Column(refeicoes_layout, size=(800, 400), scrollable=True, vertical_scroll_only=True)]
+    )
+
+    # Criação da janela com tela cheia
+    window = sg.Window('Detalhes da Dieta', layout, finalize=True, resizable=True, size=(1920, 1080))
+
+    # Loop de eventos da janela
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
 
 
 
@@ -616,7 +772,7 @@ while True:
                  janela = Window('Login',tela_login())
                  break
              if evento == 'Cadastrar':
-                 if not valor['nome']and not valor['email']and not valor['-senha-']and not valor['-senha_rep-']:
+                 if not valor['nome']or  not valor['email']or not valor['-senha-']or not valor['-senha_rep-']:
                      popup('Preencha todos os campos')
                  else:
                           if valor['-senha-'] == valor['-senha_rep-']:
@@ -626,8 +782,8 @@ while True:
                                       typo = 'Usuario'
                                   else:
                                       typo ='Nutrólogo'
-                                  adicionar_usuario(valor['nome'],valor ['email'],valor['user'],valor['senha'],typo)
-                                  popup('Usuario cadastrado com sucesso')
+                                  adicionar_usuario(valor['nome'],valor ['email'],valor['user'],valor['-senha-'],typo)
+             
                               else:
                                   popup('Usuario existende')
                           else:
@@ -642,7 +798,50 @@ while True:
                popup('O usuario não existe')
            else: 
                if a[3] == valor['-senha-'] and a[2]== valor['-nome-']:
-                   if 
+                   if a[4] == 'Nutrólogo':
+                       dados_user = a 
+                       janela.close()
+                       janela = Window('Login',tela_inicial_nutrologo())
+                       while True:
+                           evento,valor = janela.read()
+                           if evento =='dietas' or evento == "Gerenciamento de dietas":
+                               pass
+                           
+                           
+                           
+                           
+                           if evento == 'adicionar alimento':
+                               janela.close()
+                               janela = Window('Adicionar',tela_adicionar_alimento())
+                               while True:
+                                   evento,valor = janela.close()
+                                   if evento == 'Voltar' or evento == WIN_CLOSED:
+                                       janela.close()
+                                       janela = Window('Login',tela_inicial_nutrologo())     
+                                       break
+                                   if evento == ' Adicionar':
+                                        if not valor['nome']or  not valor['calos']or  not valor['protes']or  not valor['cabos']or  not valor['typo']or  not valor['quantia']:  
+                                           popup('preencha todos os campos')
+                                        else:
+                                            adicionar_alimento(valor['nome'],valor['calos'],valor['protes'],valor['cabos'],valor['gordura'],valor['typo'],valor['quantia'],dados_user[0])
+                                            
+                               
+                       
+                       
+                    
+                    
+                    
+                    
+                   elif a[4] =='Usuario':
+                       dados_user = a
+                       
+                       
+                       
+                       
+                       
+                   else:
+                       popup('Erro no sistema')
+                   
                    
                else:
                    popup('A senha ou usuario esta errada ')
