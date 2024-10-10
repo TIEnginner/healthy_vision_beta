@@ -1,6 +1,7 @@
 import flet as ft
 import pymysql
 from pymysql import Error
+import asyncio
 
 def create_connection():
     try:
@@ -114,13 +115,12 @@ def menu(page: ft.Page):
             return
 
         usuario_tipo = verify_user(nome, senha)
-        print(f"Usuário: {nome}, Tipo de usuário: {usuario_tipo}")  # Para depuração
+        print(f"Usuário: {nome}, Tipo de usuário: {usuario_tipo}")
 
-        # Verificações agora em lowercase
         if usuario_tipo and usuario_tipo.lower() == "nutrólogo":
-            second_page(page, nome)
+            second_page(page)
         elif usuario_tipo and usuario_tipo.lower() == "paciente":
-            third_page(page, nome)
+            third_page(page)
         else:
             warning_error()
 
@@ -184,16 +184,13 @@ def menu(page: ft.Page):
                 conn.close()
         page.update()
 
-    def third_page(page: ft.Page, nome_paciente: str):
+    def third_page(page: ft.Page):
             page.controls.clear()
             page.title = 'Menu do Paciente'
             page.dark_theme = ft.Theme(color_scheme_seed='red')
             page.padding = ft.Row([10, 10])
-
-            nome_paciente = 'NomeDoPaciente'
             
             page.add(ft.Column([
-                ft.FilledButton('Visualizar Informações do Paciente', on_click=lambda e: view_infos_paciente(page, nome_paciente)),
                 ft.FilledButton('Listar dietas', on_click=listar_dieta),
                 ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
             ]))
@@ -221,19 +218,29 @@ def menu(page: ft.Page):
                                 ft.DataCell(ft.Text(dieta[2])),
                             ])
                         )
-
                 table_container = ft.Container(
                     content=ft.Column(
                         controls=[diet_table],
                         scroll=ft.ScrollMode.AUTO,
                     ),
-                    height=300,
+                    height=400,
                     border_radius=ft.border_radius.all(10),
                     padding=ft.padding.all(10),
                 )
-
+                back_button = ft.ElevatedButton(
+                    text="Voltar",
+                    on_click=lambda e: second_page(page)
+                )
+                main_column = ft.Column(
+                    controls=[
+                        ft.Text("Lista de dietas", size=24, weight="bold"),
+                        table_container,
+                        back_button,
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                )
                 page.controls.clear()
-                page.add(table_container)
+                page.add(main_column)
                 page.update()
             
             except Exception as e:
@@ -244,11 +251,6 @@ def menu(page: ft.Page):
             
             finally:
                 conn.close()
-
-            page.controls.clear()
-            page.title = 'Listar Dietas'
-            page.add(diet_table)
-            ft.app(target=listar_dieta)
 
     def excluir_dieta(e):
         def delete_dieta(nome_dieta):
@@ -281,7 +283,7 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-    def atualizar_dieta(e):
+    def atualizar_dieta(e):             #Este def precisa ser atualizado mais para a frente
         def update_dieta(nome_dieta):
             conn = create_connection()
             if conn:
@@ -309,7 +311,6 @@ def menu(page: ft.Page):
                 ft.ElevatedButton(text='Atualizar', on_click=lambda e: update_dieta(dialog.content[0].value, dialog.content[1].value)),
             ]
         )
-        
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
@@ -323,10 +324,17 @@ def menu(page: ft.Page):
                         cursor.execute("SELECT * FROM dieta WHERE nome = %s", (nome_dieta,))
                         dieta = cursor.fetchone()
                         if dieta:
-                            detail_text = f'Dieta: {dieta[1]}'
+                            data_table.rows = [
+                                ft.DataRow(cells=[
+                                    ft.DataCell(ft.Text(dieta[0])),
+                                    ft.DataCell(ft.Text(dieta[1])),
+                                    ft.DataCell(ft.Text(dieta[2])),
+                                ])
+                            ]
                         else:
-                            detail_text = "Dieta não encontrada."
-                        detail_label.value = detail_text
+                            data_table.rows = [
+                                ft.DataRow(cells=[ft.DataCell(ft.Text("Dieta não encontrada."))])
+                            ]
                         page.update()
                 except Error as e:
                     snack_bar = ft.SnackBar(ft.Text('Erro ao consultar dieta.'))
@@ -335,57 +343,36 @@ def menu(page: ft.Page):
                     print(f"Ocorreu um erro ao executar a consulta: {e}")
                 finally:
                     conn.close()
+        columns = [
+            ft.DataColumn(ft.Text("ID")),
+            ft.DataColumn(ft.Text("Nome")),
+            ft.DataColumn(ft.Text("Quantidade de calorias")),
+        ]
+        data_table = ft.DataTable(columns=columns, rows=[])
 
         dialog = ft.AlertDialog(
             title=ft.Text("Consultar Dieta"),
             content=ft.Column([
                 ft.TextField(label="Nome da dieta:", on_submit=lambda e: search_dieta(e.control.value)),
+                data_table,
             ]),
         )
-        
-        detail_label = dialog.content[1]
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
 
-    def view_infos_paciente(page: ft.Page, nome_paciente: str):
-            conn = create_connection()
-            if conn:
-                try:
-                    with conn.cursor() as cursor:
-                        cursor.execute("SELECT nome, email FROM usuario WHERE nome = %s", (nome_paciente,))
-                        paciente = cursor.fetchone()
-                        if paciente:
-                            nome, email = paciente
-                            info_text = f'Nome: {nome}\nEmail: {email}'
-                        else:
-                            info_text = "Paciente não encontrado."
-                except Error as e:
-                    info_text = "Erro ao buscar informações do paciente."
-                    print(f"Ocorreu um erro ao executar a consulta: {e}")
-                finally:
-                    conn.close()
-            else:
-                info_text = "Erro na conexão com o banco de dados."
-
-            page.controls.clear()
-            page.title = 'Informações do Paciente'
-            page.add(ft.Text(info_text, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLACK))
-            page.add(ft.ElevatedButton(text='Voltar', on_click=lambda e: second_page(page)))
-            page.update()
-
-    def second_page(page: ft.Page, nome_paciente: str):
+    def second_page(page: ft.Page):
         page.controls.clear()
         page.title = 'Menu do Nutrólogo'
         
         page.add(ft.Column([
-            ft.Text(f'Bem-vindo, {nome_paciente}!', size=20),
+            ft.Text(f'Bem-vindo!', size=20),
             ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta),
+            ft.FilledButton('Cadastrar alimentos',on_click='save_alimentos'),       # É necessário  criar a função save_alimentos
             ft.FilledButton('Listar dietas', on_click=listar_dieta),
             ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
             ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta),
             ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
-            ft.FilledButton('Verificar informações do paciente', on_click=lambda e: view_infos_paciente(page, nome_paciente)),
         ]))
         page.update()
 

@@ -76,7 +76,6 @@ def menu(page: ft.Page):
             content=ft.Column([T, W, S]),
             actions=[ft.ElevatedButton(text='Cadastrar paciente', on_click=pacient_registration)],
         )
-
         page.overlay.append(dialogo)
         dialogo.open = True
         page.update()
@@ -385,7 +384,6 @@ def menu(page: ft.Page):
                 ft.ElevatedButton(text='Atualizar', on_click=lambda e: update_dieta(dialog.content[0].value, dialog.content[1].value)),
             ]
         )
-        
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
