@@ -867,18 +867,108 @@ def main(page: ft.Page):
         page.update()
         page.dialog.on_dismiss = lambda e: show_cadastro_refeicao(page)
 
+    ids_selecionados = []
+
+    def adicionar_refeicao(id_refeicao):
+        # Adiciona o ID à lista
+        if id_refeicao not in ids_selecionados:
+            ids_selecionados.append(id_refeicao)
+            print(f"ID {id_refeicao} adicionado. IDs selecionados: {ids_selecionados}")
+        else:
+            print(f"ID {id_refeicao} já foi selecionado. IDs selecionados: {ids_selecionados}")
+
     def show_cadastro_refeicao(page):
         def confirmar_cadastro(e):
-            id_alimento = campo_id_alimento.value
-            quantidade = campo_quantidade.value
             tipo_medida_id = medidas[grupo_medida.value]
             hora_id = refeicoes[grupo_hora.value]
-            id_dieta = campo_iddieta.value
-            cadastrar_refeicao(page, id_alimento, quantidade, tipo_medida_id, hora_id, id_dieta)
+            cadastrar_refeicao(page, tipo_medida_id, hora_id)
 
-        campo_id_alimento = ft.TextField(label="ID do Alimento", width=200)
-        campo_quantidade = ft.TextField(label="Quantidade", width=200)
-        campo_iddieta = ft.TextField(label="ID da Dieta", width=200)
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+
+            # Executa a consulta com JOIN para obter os nomes dos alimentos e das medidas
+            cursor.execute("""
+                SELECT 
+                    a.nome AS alimento, 
+                    ra.quantidade, 
+                    m.nome AS medida,  -- Use "m" para a tabela de medida
+                    ra.id_refeicao
+                FROM 
+                    refeicao_alimento ra
+                LEFT JOIN 
+                    alimento a ON ra.id_alimento = a.id
+                LEFT JOIN 
+                    medida m ON ra.id_medida = m.id  -- Use o nome correto da tabela
+            """)
+            result = cursor.fetchall()
+
+        except mysql.connector.Error as err:
+            print(f"Erro: {err}")
+            result = []
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        # Inicializa a tabela fora do if
+        table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Alimento")),
+                ft.DataColumn(ft.Text("Quantidade")),
+                ft.DataColumn(ft.Text("Medida")),
+                ft.DataColumn(ft.Text("Adicionar")),
+            ],
+            rows=[]
+        )
+
+        # Se houver resultados, preenche a tabela
+        if result:
+            for alimento in result:
+                nova_linha = ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(alimento[0])),  # Nome do Alimento
+                        ft.DataCell(ft.Text(str(alimento[1]))),  # Quantidade
+                        ft.DataCell(ft.Text(alimento[2])),  # Nome da Medida
+                        ft.DataCell(
+                            ft.IconButton(
+                                icon=ft.icons.ADD,
+                                on_click=lambda e, id=alimento[3]: adicionar_refeicao(id)  # Usar o id_refeicao da linha
+                            )
+                        )
+                    ]
+                )
+                table.rows.append(nova_linha)
+        else:
+            # Adiciona uma linha com a mensagem "Nenhuma refeição encontrada" preenchendo as outras células vazias
+            table.rows.append(
+                ft.DataRow(cells=[
+                    ft.DataCell(ft.Text("Nenhuma refeição encontrada.")),
+                    ft.DataCell(ft.Text("")),
+                    ft.DataCell(ft.Text("")),
+                    ft.DataCell(ft.Text(""))
+                ])
+            )
+
+        # Adiciona a tabela à página
+        table_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(controls=[table], alignment=ft.MainAxisAlignment.CENTER)
+                ],
+                scroll=ft.ScrollMode.AUTO,
+            ),
+            height=300,
+            bgcolor="#4F4F4F",
+            padding=ft.padding.all(10),
+            border_radius=ft.border_radius.all(10),
+        )
 
         grupo_medida = ft.Dropdown(
             label="Selecione a unidade de medida:",
@@ -904,9 +994,7 @@ def main(page: ft.Page):
         form = ft.AlertDialog(
             title=ft.Text("Cadastro de Refeição"),
             content=ft.Column([
-                campo_id_alimento,
-                campo_quantidade,
-                campo_iddieta,
+                table_container,
                 grupo_medida,
                 grupo_hora
             ]),
@@ -1264,7 +1352,7 @@ def main(page: ft.Page):
                     port="3306"
                 )
                 cursor = conn.cursor()
-                cursor.execute("SELECT id_refeicao, id_alimento, quantidade, tipo_medida, hora FROM refeicao_alimento")
+                cursor.execute("SELECT id, nome, horario, dieta FROM refeicao")
                 result = cursor.fetchall()
 
             except mysql.connector.Error as err:
@@ -1294,11 +1382,10 @@ def main(page: ft.Page):
 
                 table = ft.DataTable(
                     columns=[
-                        ft.DataColumn(ft.Text("ID Refeição")),
-                        ft.DataColumn(ft.Text("ID Alimento")),
-                        ft.DataColumn(ft.Text("Quantidade")),
-                        ft.DataColumn(ft.Text("Medida")),
-                        ft.DataColumn(ft.Text("Hora")),
+                        ft.DataColumn(ft.Text("id")),
+                        ft.DataColumn(ft.Text("nome")),
+                        ft.DataColumn(ft.Text("horário")),
+                        ft.DataColumn(ft.Text("dieta")),
                     ],
                     rows=[]
                 )
@@ -1306,11 +1393,10 @@ def main(page: ft.Page):
                 for alimento in result:
                     nova_linha = ft.DataRow(
                         cells=[
-                            ft.DataCell(ft.Text(alimento[0])),  # ID Refeição
-                            ft.DataCell(ft.Text(alimento[1])),  # ID Alimento
-                            ft.DataCell(ft.Text(int(alimento[2]))),  # Quantidade
-                            ft.DataCell(ft.Text(alimento[3])),  # Medida
-                            ft.DataCell(ft.Text(alimento[4])),  # Hora
+                            ft.DataCell(ft.Text(alimento[0])),
+                            ft.DataCell(ft.Text(alimento[1])),
+                            ft.DataCell(ft.Text(alimento[2])),
+                            ft.DataCell(ft.Text(alimento[3])),
                         ]
                     )
                     table.rows.append(nova_linha)
