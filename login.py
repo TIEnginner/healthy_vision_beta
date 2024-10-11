@@ -852,12 +852,10 @@ def main(page: ft.Page):
             title=ft.Text("Tutorial de Cadastro de Refeição"),
             content=ft.Text(
                 "Para adicionar uma refeição, siga as etapas:\n\n"
-                "1. Insira o ID do alimento.\n"
-                "2. Digite a quantidade de alimento.\n"
-                "3. Digite o id da dieta que a refeição faz parte.\n"
-                "4. Selecione a unidade de medida (Gramas, Xícaras, etc.).\n"
-                "5. Selecione a refeição correspondente (Café da manhã, Almoço, etc.).\n"
-                "6. Clique em Confirmar para adicionar a refeição."
+                "1. Selecione a refeição (Café da manhã, Almoço, etc.) e horário.\n"
+                "2. Selecione a dieta a ser associada.\n"
+                "3. Selecione os alimentos e adicione a quantidade e a medida de cada um.\n"
+                "4. Clique em Confirmar para salvar."
             ),
             actions=[ft.TextButton("Fechar", on_click=close_popup)],
         )
@@ -867,22 +865,99 @@ def main(page: ft.Page):
         page.update()
         page.dialog.on_dismiss = lambda e: show_cadastro_refeicao(page)
 
+    # Adiciona o ID de alimento à lista de selecionados
     ids_selecionados = []
 
-    def adicionar_refeicao(id_refeicao):
-        # Adiciona o ID à lista
-        if id_refeicao not in ids_selecionados:
-            ids_selecionados.append(id_refeicao)
-            print(f"ID {id_refeicao} adicionado. IDs selecionados: {ids_selecionados}")
+    def adicionar_alimento(id_alimento):
+        if id_alimento not in ids_selecionados:
+            ids_selecionados.append(id_alimento)
+            print(f"ID {id_alimento} adicionado. IDs selecionados: {ids_selecionados}")
         else:
-            print(f"ID {id_refeicao} já foi selecionado. IDs selecionados: {ids_selecionados}")
+            print(f"ID {id_alimento} já foi selecionado.")
 
-    def show_cadastro_refeicao(page):
-        def confirmar_cadastro(e):
-            tipo_medida_id = medidas[grupo_medida.value]
-            hora_id = refeicoes[grupo_hora.value]
-            cadastrar_refeicao(page, tipo_medida_id, hora_id)
+    # Função para adicionar quantidade e medida de cada alimento
+    def adicionar_quantidade_medida(page, id_alimento, id_refeicao):
+        try:
+            # Conectar ao banco para obter as medidas disponíveis
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
 
+            # Consulta para obter os dados da tabela medida
+            cursor.execute("SELECT id, tipo_quan FROM medida")
+            medidas = cursor.fetchall()
+
+        except mysql.connector.Error as err:
+            print(f"Erro ao buscar medidas: {err}")
+            medidas = []
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        # Criar a dropdown para as medidas
+        dropdown_medida = ft.Dropdown(label="Selecione a Medida")
+        for medida in medidas:
+            dropdown_medida.options.append(ft.dropdown.Option(str(medida[0]), medida[1]))  # ID como valor, nome como texto
+
+        input_quantidade = ft.TextField(label="Quantidade")
+
+        # Função para confirmar a quantidade e medida e salvar na tabela refeicao_alimento
+        def confirmar_quantidade_medida(e):
+            quantidade = input_quantidade.value
+            id_medida = dropdown_medida.value  # ID da medida selecionada
+
+            if quantidade and id_medida:
+                try:
+                    conn = mysql.connector.connect(
+                        host="localhost",
+                        user="root",
+                        password="acesso123",
+                        database="dietas",
+                        port="3306"
+                    )
+                    cursor = conn.cursor()
+
+                    # Inserir os dados na tabela refeicao_alimento
+                    cursor.execute("""
+                        INSERT INTO refeicao_alimento (id_refeicao, id_alimento, quantidade, tipo_medida)
+                        VALUES (%s, %s, %s, %s)
+                    """, (id_refeicao, id_alimento, quantidade, int(id_medida)))
+                    conn.commit()
+
+                    print(f"Alimento adicionado à refeição: ID Alimento: {id_alimento}, Quantidade: {quantidade}, ID Medida: {id_medida}")
+
+                except mysql.connector.Error as err:
+                    print(f"Erro ao salvar refeição_alimento: {err}")
+
+                finally:
+                    cursor.close()
+                    conn.close()
+
+            # Não fechar o diálogo aqui, mantendo a tela de seleção aberta
+            page.update()
+
+        # Exibe o formulário para a quantidade e medida
+        form_quantidade_medida = ft.AlertDialog(
+            title=ft.Text("Informe a Quantidade e a Medida"),
+            content=ft.Column([input_quantidade, dropdown_medida]),
+            actions=[
+                ft.TextButton("Confirmar", on_click=confirmar_quantidade_medida),
+                ft.TextButton("Cancelar", on_click=lambda e: page.dialog.close())
+            ]
+        )
+
+        page.dialog = form_quantidade_medida
+        page.dialog.open = True
+        page.update()
+
+    # Exibe a tela de cadastro de alimentos
+    def show_cadastro_alimento(page, id_refeicao):  # Recebe id_refeicao
         try:
             conn = mysql.connector.connect(
                 host="localhost",
@@ -893,19 +968,12 @@ def main(page: ft.Page):
             )
             cursor = conn.cursor()
 
-            # Executa a consulta com JOIN para obter os nomes dos alimentos e das medidas
+            # Consulta para obter os dados da tabela alimento
             cursor.execute("""
                 SELECT 
-                    a.nome AS alimento, 
-                    ra.quantidade, 
-                    m.nome AS medida,  -- Use "m" para a tabela de medida
-                    ra.id_refeicao
+                    id, nome, calorias, proteinas, carboidratos, gorduras 
                 FROM 
-                    refeicao_alimento ra
-                LEFT JOIN 
-                    alimento a ON ra.id_alimento = a.id
-                LEFT JOIN 
-                    medida m ON ra.id_medida = m.id  -- Use o nome correto da tabela
+                    alimento
             """)
             result = cursor.fetchall()
 
@@ -917,51 +985,50 @@ def main(page: ft.Page):
             cursor.close()
             conn.close()
 
-        # Inicializa a tabela fora do if
+        # Inicializa a tabela de alimentos
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Alimento")),
-                ft.DataColumn(ft.Text("Quantidade")),
-                ft.DataColumn(ft.Text("Medida")),
+                ft.DataColumn(ft.Text("ID")),
+                ft.DataColumn(ft.Text("Nome")),
+                ft.DataColumn(ft.Text("Calorias")),
+                ft.DataColumn(ft.Text("Proteínas")),
+                ft.DataColumn(ft.Text("Carboidratos")),
+                ft.DataColumn(ft.Text("Gorduras")),
                 ft.DataColumn(ft.Text("Adicionar")),
             ],
             rows=[]
         )
 
-        # Se houver resultados, preenche a tabela
+        # Preenche a tabela com os alimentos
         if result:
             for alimento in result:
                 nova_linha = ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(alimento[0])),  # Nome do Alimento
-                        ft.DataCell(ft.Text(str(alimento[1]))),  # Quantidade
-                        ft.DataCell(ft.Text(alimento[2])),  # Nome da Medida
+                        ft.DataCell(ft.Text(str(alimento[0]))),  # ID do Alimento
+                        ft.DataCell(ft.Text(alimento[1])),  # Nome
+                        ft.DataCell(ft.Text(str(alimento[2]))),  # Calorias
+                        ft.DataCell(ft.Text(str(alimento[3]))),  # Proteínas
+                        ft.DataCell(ft.Text(str(alimento[4]))),  # Carboidratos
+                        ft.DataCell(ft.Text(str(alimento[5]))),  # Gorduras
                         ft.DataCell(
                             ft.IconButton(
                                 icon=ft.icons.ADD,
-                                on_click=lambda e, id=alimento[3]: adicionar_refeicao(id)  # Usar o id_refeicao da linha
+                                on_click=lambda e, id=alimento[0]: adicionar_quantidade_medida(page, id, id_refeicao)  # Passa id_alimento e id_refeicao
                             )
                         )
                     ]
                 )
                 table.rows.append(nova_linha)
         else:
-            # Adiciona uma linha com a mensagem "Nenhuma refeição encontrada" preenchendo as outras células vazias
+            # Exibe mensagem caso não haja alimentos
             table.rows.append(
-                ft.DataRow(cells=[
-                    ft.DataCell(ft.Text("Nenhuma refeição encontrada.")),
-                    ft.DataCell(ft.Text("")),
-                    ft.DataCell(ft.Text("")),
-                    ft.DataCell(ft.Text(""))
-                ])
+                ft.DataRow(cells=[ft.DataCell(ft.Text("Nenhum alimento encontrado."))])
             )
 
-        # Adiciona a tabela à página
+        # Exibe a tabela na página
         table_container = ft.Container(
             content=ft.Column(
-                controls=[
-                    ft.Row(controls=[table], alignment=ft.MainAxisAlignment.CENTER)
-                ],
+                controls=[ft.Row(controls=[table], alignment=ft.MainAxisAlignment.CENTER)],
                 scroll=ft.ScrollMode.AUTO,
             ),
             height=300,
@@ -970,43 +1037,114 @@ def main(page: ft.Page):
             border_radius=ft.border_radius.all(10),
         )
 
-        grupo_medida = ft.Dropdown(
-            label="Selecione a unidade de medida:",
-            options=[
-                ft.dropdown.Option("Gramas"),
-                ft.dropdown.Option("Xícaras"),
-                ft.dropdown.Option("Colheres de sopa"),
-                ft.dropdown.Option("Colheres de chá"),
-                ft.dropdown.Option("Mililitros"),
-            ],
-        )
-
-        grupo_hora = ft.Dropdown(
-            label="Selecione a refeição:",
-            options=[
-                ft.dropdown.Option("Café da Manhã"),
-                ft.dropdown.Option("Almoço"),
-                ft.dropdown.Option("Café da Tarde"),
-                ft.dropdown.Option("Jantar"),
-            ],
-        )
-
         form = ft.AlertDialog(
-            title=ft.Text("Cadastro de Refeição"),
-            content=ft.Column([
-                table_container,
-                grupo_medida,
-                grupo_hora
-            ]),
+            title=ft.Text("Cadastro de Alimento"),
+            content=ft.Column([table_container]),
             actions=[
-                ft.TextButton("Confirmar", on_click=confirmar_cadastro),
+                ft.TextButton("Confirmar", on_click=lambda e: page.dialog.close()),
                 ft.TextButton("Cancelar", on_click=lambda e: page.dialog.close())
-            ],
+            ]
         )
 
         page.dialog = form
         page.dialog.open = True
         page.update()
+
+    # Cadastro da refeição com nome, horário e dieta
+    def show_cadastro_refeicao(page):
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+
+            # Consulta para obter os dados das dietas
+            cursor.execute("SELECT id, nome FROM dieta")
+            dietas = cursor.fetchall()
+
+        except mysql.connector.Error as err:
+            print(f"Erro: {err}")
+            dietas = []
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        # Campos para cadastro da refeição
+        dropdown_refeicao = ft.Dropdown(
+            label="Selecione a Refeição",
+            options=[
+                ft.dropdown.Option("Café da manhã"),
+                ft.dropdown.Option("Almoço"),
+                ft.dropdown.Option("Jantar"),
+                ft.dropdown.Option("Lanche")
+            ]
+        )
+
+        input_horario = ft.TextField(label="Horário (HH:MM)")
+        dropdown_dieta = ft.Dropdown(label="Selecione a Dieta")
+
+        # Preenche a dropdown de dietas
+        for dieta in dietas:
+            dropdown_dieta.options.append(ft.dropdown.Option(str(dieta[0]), dieta[1]))  # ID como valor, nome como texto
+
+        # Na função de confirmação
+        def confirmar_refeicao(e):
+            nome_refeicao = dropdown_refeicao.value
+            horario = input_horario.value
+            id_dieta = dropdown_dieta.value  # Captura o ID da dieta agora
+
+            if nome_refeicao and horario and id_dieta:
+                try:
+                    conn = mysql.connector.connect(
+                        host="localhost",
+                        user="root",
+                        password="acesso123",
+                        database="dietas",
+                        port="3306"
+                    )
+                    cursor = conn.cursor()
+
+                    # Inserção na tabela refeicao com o ID da dieta
+                    cursor.execute("""
+                        INSERT INTO refeicao (nome, horario, dieta)
+                        VALUES (%s, %s, %s)
+                    """, (nome_refeicao, horario, int(id_dieta)))  # Converte o ID da dieta para inteiro
+                    conn.commit()
+                    id_refeicao = cursor.lastrowid  # ID gerado da refeição
+
+                    print(f"Refeição cadastrada: {nome_refeicao}, ID: {id_refeicao}")
+                    show_cadastro_alimento(page, id_refeicao)
+
+                except mysql.connector.Error as err:
+                    print(f"Erro ao cadastrar refeição: {err}")
+                
+                finally:
+                    cursor.close()
+                    conn.close()
+
+        # Exibe o formulário para a refeição
+        form = ft.AlertDialog(
+            title=ft.Text("Cadastro de Refeição"),
+            content=ft.Column([
+                dropdown_refeicao,
+                input_horario,
+                dropdown_dieta,
+            ]),
+            actions=[
+                ft.TextButton("Confirmar", on_click=confirmar_refeicao),
+                ft.TextButton("Cancelar", on_click=lambda e: page.dialog.close())
+            ]
+        )
+
+        page.dialog = form
+        page.dialog.open = True
+        page.update()
+
 
     def show_dialog_delete_refeicao():
         dialog = ft.AlertDialog(
