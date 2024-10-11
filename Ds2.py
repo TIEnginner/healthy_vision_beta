@@ -1,7 +1,6 @@
 import flet as ft
 import pymysql
 from pymysql import Error
-import asyncio
 
 def create_connection():
     try:
@@ -192,7 +191,7 @@ def menu(page: ft.Page):
             
             page.add(ft.Column([
                 ft.FilledButton('Listar dietas', on_click=listar_dieta),
-                ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
+                ft.FilledButton('Pesquisar dieta', on_click=pesquisar_dieta),
             ]))
             page.update()
 
@@ -252,6 +251,115 @@ def menu(page: ft.Page):
             finally:
                 conn.close()
 
+    def listar_alimentos(e):
+        food_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Nome do Alimento")),
+                ft.DataColumn(ft.Text("Calorias")),
+            ]
+        )
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT * FROM alimento")
+                    rows = cursor.fetchall()
+                    food_table.rows.clear()
+                    
+                    for alimento in rows:
+                        food_table.rows.append(
+                            ft.DataRow(cells=[
+                                ft.DataCell(ft.Text(alimento[1])),
+                                ft.DataCell(ft.Text(alimento[2])),
+                            ])
+                        )
+                table_container = ft.Container(
+                    content=ft.Column(
+                        controls=[food_table],
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    height=400,
+                    border_radius=ft.border_radius.all(10),
+                    padding=ft.padding.all(10),
+                )
+                back_button = ft.ElevatedButton(
+                    text="Voltar",
+                    on_click=lambda e: second_page(page)
+                )
+                main_column = ft.Column(
+                    controls=[
+                        ft.Text("Lista de Alimentos", size=24, weight="bold"),
+                        table_container,
+                        back_button,
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                )
+                page.controls.clear()
+                page.add(main_column)
+                page.update()
+            
+            except Exception as e:
+                snack_bar = ft.SnackBar(ft.Text('Erro ao listar alimentos.'))
+                page.snack_bar = snack_bar
+                snack_bar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            
+            finally:
+                conn.close()
+
+    def save_alimento(nome, quantidade, unidade, calorias, proteinas, gorduras, carboidratos):
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO alimento (nome, quantidade, unidade, proteínas, carboidratos, gorduras, calorias) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        (nome, quantidade, unidade, proteinas, carboidratos, gorduras, calorias)
+                    )
+                    conn.commit()
+                    snack_bar = ft.SnackBar(ft.Text('Alimento salvo com sucesso.'))
+                    page.snack_bar = snack_bar
+                    snack_bar.open = True
+                    page.controls.clear()
+            except Error as e:
+                snackbar = ft.SnackBar(ft.Text("Ocorreu um erro ao cadastrar o alimento, tente novamente."))
+                page.snack_bar = snackbar
+                snackbar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
+
+    def save_alimentos(e):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Salvar Alimento"),
+            content=ft.Column(
+                [
+                    ft.TextField(label='Nome do alimento:'),
+                    ft.TextField(label='Quantidade do alimento:'),
+                    ft.TextField(label='Unidade do alimento: Gramas, Kg ou Mililitros(ml)'),
+                    ft.TextField(label='Calorias:'),
+                    ft.TextField(label='Proteínas:'),
+                    ft.TextField(label='Gorduras:'),
+                    ft.TextField(label='Carboidratos:')
+                ]
+            ),
+            actions=[
+                ft.TextButton('Salvar', on_click=lambda e: save_alimento(
+                    dialog.content.controls[0].value,
+                    dialog.content.controls[1].value,
+                    dialog.content.controls[2].value,
+                    dialog.content.controls[3].value,
+                    dialog.content.controls[4].value,
+                    dialog.content.controls[5].value,
+                    dialog.content.controls[6].value
+                )),
+            ],
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
+
+
     def excluir_dieta(e):
         def delete_dieta(nome_dieta):
             conn = create_connection()
@@ -278,7 +386,6 @@ def menu(page: ft.Page):
                 ft.ElevatedButton(text='Excluir', on_click=lambda e: delete_dieta(dialog.content.value)),
             ]
         )
-        
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
@@ -315,7 +422,7 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
-    def consultar_dieta(e):
+    def pesquisar_dieta(e):
         def search_dieta(nome_dieta):
             conn = create_connection()
             if conn:
@@ -351,7 +458,7 @@ def menu(page: ft.Page):
         data_table = ft.DataTable(columns=columns, rows=[])
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Consultar Dieta"),
+            title=ft.Text("Pesquisar Dieta"),
             content=ft.Column([
                 ft.TextField(label="Nome da dieta:", on_submit=lambda e: search_dieta(e.control.value)),
                 data_table,
@@ -368,11 +475,12 @@ def menu(page: ft.Page):
         page.add(ft.Column([
             ft.Text(f'Bem-vindo!', size=20),
             ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta),
-            ft.FilledButton('Cadastrar alimentos',on_click='save_alimentos'),       # É necessário  criar a função save_alimentos
             ft.FilledButton('Listar dietas', on_click=listar_dieta),
             ft.FilledButton('Excluir dieta', on_click=excluir_dieta),
             ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta),
-            ft.FilledButton('Consultar dieta', on_click=consultar_dieta),
+            ft.FilledButton('Pesquisar dieta', on_click=pesquisar_dieta),
+            ft.FilledButton('Cadastrar alimentos',on_click=save_alimentos),
+            ft.FilledButton('Listar alimentos',on_click=listar_alimentos),
         ]))
         page.update()
 
