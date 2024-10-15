@@ -32,7 +32,7 @@ def verify_user(nome, senha):
     return None
 
 def menu(page: ft.Page):
-    page.title = "Acompanhamento de dietas"
+    page.title = "Healthy Vision"
     page.theme = ft.Theme(color_scheme_seed='yellow')
     page.add(ft.Text(value='Bem vindo!', size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLACK))
 
@@ -64,7 +64,6 @@ def menu(page: ft.Page):
             )],
         )
         load_dietas(dieta_dropdown)
-
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
@@ -76,9 +75,9 @@ def menu(page: ft.Page):
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT nome FROM dieta")
                     dietas = cursor.fetchall()
-                    dropdown.options.clear()  # aqui limpa as opções existentes.
+                    dropdown.options.clear()  # Limpa as opções existentes.
                     for dieta in dietas:
-                        dropdown.options.append(ft.Dropdown(label=dieta[0], value=dieta[0]))  # aqui adiciona dietas ao dropdown.
+                        dropdown.options.append(ft.Dropdown(label=dieta[0], value=dieta[0]))  # Adiciona dietas ao dropdown.
             except Exception as e:
                 print(f"Ocorreu um erro ao carregar as dietas: {e}")
             finally:
@@ -97,20 +96,33 @@ def menu(page: ft.Page):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO usuario (nome, senha, email, tipo) VALUES (%s, %s, %s, %s) SELECT LAST_INSERT_ID()",    # Aqui ocorrem erros.
+                        "INSERT INTO usuario (nome, senha, email, tipo) VALUES (%s, %s, %s, %s);",
                         (nome, senha, email, tipo)
                     )
-                    usuario_id = cursor.fetchone()[0]  # Aqui obtém o ID do usuário criado.
-                    cursor.execute(
-                        "UPDATE usuario SET id_dieta = (SELECT id FROM dieta WHERE nome = %s) WHERE id = %s",
-                        (dieta, usuario_id)
-                    )
+                    usuario_id = cursor.lastrowid
+
+                    if dieta:
+                        cursor.execute("SELECT id FROM dieta WHERE nome = %s", (dieta,))
+                        dieta_id = cursor.fetchone()
+
+                        if dieta_id:
+                            dieta_id = dieta_id[0]
+                            cursor.execute(
+                                "UPDATE usuario SET id_dieta = %s WHERE id = %s",
+                                (dieta_id, usuario_id)
+                            )
+                        else:
+                            snack_bar = ft.SnackBar(ft.Text(f"Dieta '{dieta}' não encontrada."))
+                            page.snack_bar = snack_bar
+                            snack_bar.open = True
+                            return
+
                     conn.commit()
                     snack_bar = ft.SnackBar(ft.Text(f"{tipo.capitalize()} cadastrado com sucesso!"))
                     page.snack_bar = snack_bar
                     snack_bar.open = True
             except Exception as e:
-                snack_bar = ft.SnackBar(ft.Text(f"Erro ao cadastrar {tipo}."))
+                snack_bar = ft.SnackBar(ft.Text(f"Erro ao cadastrar {tipo}."))  
                 page.snack_bar = snack_bar
                 snack_bar.open = True
                 print(f"Ocorreu um erro ao executar a consulta: {e}")
@@ -195,16 +207,18 @@ def menu(page: ft.Page):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO dieta (nome, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s);SELECT LAST_INSERT_ID()",
+                        "INSERT INTO dieta (nome, calorias, proteinas, carboidratos, gorduras) VALUES (%s, %s, %s, %s, %s);",
                         (nome, calorias, proteinas, carboidratos, gorduras)
                     )
-                    dieta_id = cursor.fetchone()[0]
+                    # Obtenha o último ID inserido
+                    dieta_id = cursor.lastrowid
+                    # Aqui atualiza o ID da dieta no usuário
                     cursor.execute(
                         "UPDATE usuario SET id_dieta = %s WHERE id = %s AND tipo = 'Paciente'",
                         (dieta_id, paciente_id)
                     )
-                    conn.commit()     # Aqui a dieta é atribuída a um paciente.
-                    
+                    conn.commit()  # Aqui a dieta é atribuída a um paciente.
+
                     snack_bar = ft.SnackBar(ft.Text(f'Dieta "{nome}" cadastrada e atribuída ao paciente com ID {paciente_id} com sucesso!'))
                     page.snack_bar = snack_bar
                     snack_bar.open = True
@@ -557,19 +571,100 @@ def menu(page: ft.Page):
         dialog.open = True
         page.update()
 
+    def excluir_alimento(e):
+        def delete_alimento(nome_alimento):
+            conn = create_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute("DELETE FROM alimentos WHERE nome = %s", (nome_alimento,))
+                        conn.commit()
+                        snack_bar = ft.SnackBar(ft.Text(f'Alimento "{nome_alimento}" excluído com sucesso!'))
+                        page.snack_bar = snack_bar
+                        snack_bar.open = True
+                except Exception as e:
+                    snack_bar = ft.SnackBar(ft.Text('Erro ao excluir alimento.'))
+                    page.snack_bar = snack_bar
+                    snack_bar.open = True
+                    print(f"Ocorreu um erro ao executar a consulta: {e}")
+                finally:
+                    conn.close()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Excluir Alimento"),
+            content=ft.TextField(label="Nome do alimento a ser excluído:"),
+            actions=[
+                ft.ElevatedButton(text='Excluir', on_click=lambda e: delete_alimento(dialog.content.value)),
+            ]
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
+
+    def editar_alimento(e):
+        def update_alimento(nome_alimento, novo_nome, nova_caloria):
+            conn = create_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute("""
+                            UPDATE alimentos 
+                            SET nome = %s, calorias = %s 
+                            WHERE nome = %s
+                        """, (novo_nome, nova_caloria, nome_alimento))
+                        conn.commit()
+                        snack_bar = ft.SnackBar(ft.Text(f'Alimento "{nome_alimento}" editado com sucesso!'))
+                        page.snack_bar = snack_bar
+                        snack_bar.open = True
+                except Exception as e:
+                    snack_bar = ft.SnackBar(ft.Text('Erro ao editar alimento.'))
+                    page.snack_bar = snack_bar
+                    snack_bar.open = True
+                    print(f"Ocorreu um erro ao executar a consulta: {e}")
+                finally:
+                    conn.close()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Editar Alimento"),
+            content=ft.Column([
+                ft.TextField(label="Nome do alimento a ser editado:"),
+                ft.TextField(label="Novo nome do alimento:"),
+                ft.TextField(label="Nova quantidade de calorias:", keyboard_type=ft.KeyboardType.NUMBER)
+            ]),
+            actions=[
+                ft.ElevatedButton(
+                    text='Editar',
+                    on_click=lambda e: update_alimento(
+                        dialog.content.controls[0].value,
+                        dialog.content.controls[1].value,
+                        dialog.content.controls[2].value
+                    )
+                ),
+            ]
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
+
     def list_pacients(e):
         patient_table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Nome do Paciente")),
                 ft.DataColumn(ft.Text("Id")),
                 ft.DataColumn(ft.Text("Email")),
+                ft.DataColumn(ft.Text("Dieta Atribuída")),
             ]
         )
         conn = create_connection()
         if conn:
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT nome, id, email FROM usuario WHERE tipo = 'Paciente'")
+                    cursor.execute("""
+                        SELECT u.nome, u.id, u.email, d.nome 
+                        FROM usuario u 
+                        LEFT JOIN dieta d ON u.id_dieta = d.id 
+                        WHERE u.tipo = 'Paciente'
+                    """)
                     rows = cursor.fetchall()
                     patient_table.rows.clear()
                     
@@ -579,8 +674,10 @@ def menu(page: ft.Page):
                                 ft.DataCell(ft.Text(paciente[0])),  # Nome do paciente
                                 ft.DataCell(ft.Text(paciente[1])),  # Id do paciente
                                 ft.DataCell(ft.Text(paciente[2])),  # Email do paciente
+                                ft.DataCell(ft.Text(paciente[3] if paciente[3] else "Nenhuma")),  # Dieta atribuída
                             ])
                         )
+                
                 table_container = ft.Container(
                     content=ft.Column(
                         controls=[patient_table],
@@ -626,9 +723,11 @@ def menu(page: ft.Page):
             ft.FilledButton('Excluir dieta', on_click=excluir_dieta, icon=ft.icons.DELETE),
             ft.FilledButton('Atualizar dieta', on_click=atualizar_dieta, icon=ft.icons.EDIT),       # Esta função precisa ser atualizada.
             ft.FilledButton('Pesquisar dieta', on_click=pesquisar_dieta, icon=ft.icons.SEARCH),
-            ft.FilledButton('Listar pacientes',on_click=list_pacients, icon=ft.icons.LIST),      # Este def está para ser incrementado.
+            ft.FilledButton('Listar pacientes',on_click=list_pacients, icon=ft.icons.LIST),
             ft.FilledButton('Cadastrar alimentos',on_click=save_alimentos, icon=ft.icons.ADD),
             ft.FilledButton('Listar alimentos',on_click=listar_alimentos, icon=ft.icons.LIST),
+            ft.FilledButton('Excluir alimentos',on_click=excluir_alimento, icon=ft.icons.DELETE),
+            ft.FilledButton('Atualizar alimentos',on_click=editar_alimento, icon=ft.icons.DELETE),
 
         ]))
         page.update()
