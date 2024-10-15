@@ -141,6 +141,7 @@ def main(page: ft.Page):
             if result:
                 # O tipo de usuário está na quarta coluna (índice 3)
                 tipo_usuario = result[0][4]  # Modifique o índice conforme a estrutura da sua tabela
+                usuario_id = result[0][0]  # Obtenha o ID do usuário (primeira coluna)
 
                 show_popup_login_sucesso()
                 page.clean()
@@ -148,10 +149,10 @@ def main(page: ft.Page):
                 if tipo_usuario.lower() == "nutrólogo":
                     page_nutro(page)
                 elif tipo_usuario.lower() == "paciente":
-                    page_paci(page)
+                    # Chame a função page_paci passando o id do usuário
+                    page_paci(page, usuario_id)
                 else:
                     show_popup_usuario_nao_encontrado()
-
             else:
                 show_popup_usuario_nao_encontrado()
 
@@ -164,7 +165,6 @@ def main(page: ft.Page):
                 cursor.close()
             if conn:
                 conn.close()
-
 
     def show_popup_login_sucesso():
         popup = ft.AlertDialog(
@@ -271,6 +271,28 @@ def main(page: ft.Page):
             else:
                 verificar_email(email_cadastro, v_senha_existe, e)
 
+    def voltar_loguin(e):
+        page.controls.clear()
+        page.update()
+        main(page)
+
+    def show_popup_voltar_login():
+        popup = ft.AlertDialog(
+            title=ft.Text("Atenção!"),
+            content=ft.Text("Você deseja voltar para a tela de login?"),
+            actions=[ft.TextButton("OK", on_click=lambda e: fechar_popup())],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+
+        def fechar_popup():
+            popup.open = False
+            page.update()
+            voltar_loguin(page)
+
+        page.dialog = popup
+        popup.open = True
+        page.update()
+
     def abrir_cadastro():
         page.controls.clear()
 
@@ -281,6 +303,7 @@ def main(page: ft.Page):
         repetir_senha = ft.TextField(label="Repetir Senha", password=True)
         altura_cadastro = ft.TextField(label="Informe sua altura (ex: 1.75)")
         peso_cadastro = ft.TextField(label="Informe seu peso (ex: 73.5)")
+        botao_voltar = ft.ElevatedButton(text="X", on_click= voltar_loguin)
 
         def v_senha_existe(e):
             try:
@@ -348,46 +371,48 @@ def main(page: ft.Page):
         )
 
         frame_cadastro = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Container(label_cadastro, alignment=ft.alignment.center, bgcolor="#4D4D4D", padding=18),
-                    ft.Container(nome_cadastro, alignment=ft.alignment.center),
-                    ft.Container(email_cadastro, alignment=ft.alignment.center),
-                    ft.Container(senha_cadastro, alignment=ft.alignment.center),
-                    ft.Container(repetir_senha, alignment=ft.alignment.center),
-                    ft.Container(altura_cadastro, alignment=ft.alignment.center),
-                    ft.Container(peso_cadastro, alignment=ft.alignment.center),
-                    ft.Container(radio_group, alignment=ft.alignment.center),
-                    ft.Container(botao_cadastrar, alignment=ft.alignment.center),
-                ]
-            ),
-            bgcolor="#696969",
-            width=400,
-            height=600,
-            border_radius=10,
-            alignment=ft.alignment.center,
-            padding=20
-        )
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(label_cadastro, alignment=ft.alignment.center, bgcolor="#4D4D4D", padding=18),
+                            ft.Container(nome_cadastro, alignment=ft.alignment.center),
+                            ft.Container(email_cadastro, alignment=ft.alignment.center),
+                            ft.Container(senha_cadastro, alignment=ft.alignment.center),
+                            ft.Container(repetir_senha, alignment=ft.alignment.center),
+                            ft.Container(altura_cadastro, alignment=ft.alignment.center),
+                            ft.Container(peso_cadastro, alignment=ft.alignment.center),
+                            ft.Container(radio_group, alignment=ft.alignment.center),
+                            ft.Container(botao_cadastrar, alignment=ft.alignment.center),
+                            ft.Container(botao_voltar, alignment=ft.alignment.bottom_right,),
+                        ]
+                    ),
+                    bgcolor="#696969",
+                    width=400,
+                    height=600,
+                    border_radius=10,
+                    alignment=ft.alignment.center,
+                    padding=20
+                )
 
         frame_container = ft.Container(
-            content=frame_cadastro,
-            alignment=ft.alignment.center,
-            padding=115
-        )
+                    content=frame_cadastro,
+                    alignment=ft.alignment.center,
+                    padding=115
+                )
 
         main_container = ft.Column(
-            controls=[frame_container],
-            alignment=ft.MainAxisAlignment.START,
-        )
+                    controls=[frame_container],
+                    alignment=ft.MainAxisAlignment.START,
+                )
 
         page.add(main_container)
         page.update()
 
 
+
     page.title = "Healthy Vision"
     page.window.full_screen = False  # Muda para False para não ser tela cheia
     page.window.width = 1250  # Defina uma largura adequada para sua aplicação
-    page.window.height = 800  # Defina uma altura adequada para sua aplicação
+    page.window.height = 970  # Defina uma altura adequada para sua aplicação
 
     label = ft.Text("Healthy Vision", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
     label1 = ft.Text("Login")
@@ -666,7 +691,7 @@ def main(page: ft.Page):
             if conn.is_connected():
                 cursor = conn.cursor()
 
-                cursor.execute("SELECT id_refeicao, id_alimento, quantidade, tipo_medida, hora FROM refeicao_alimento")
+                cursor.execute("SELECT id_refeicao, id_alimento, quantidade, tipo_medida, horario FROM refeicao_alimento")
                 result = cursor.fetchall()
 
                 table.rows.clear()
@@ -718,6 +743,7 @@ def main(page: ft.Page):
         page.overlay.append(dialogo_deletar)
         dialogo_deletar.open = True
         page.update()
+        
 
     def remover_alimento_a(nome, dialogo_deletar, page):
         try:
@@ -736,7 +762,8 @@ def main(page: ft.Page):
             if resultado:
                 cursor.execute("DELETE FROM alimento WHERE nome = %s", (nome,))
                 conn.commit()
-                show_success_popup("Alimento deletado com sucesso!", page, dialogo_deletar)  # Correção da mensagem
+                show_success_popup("Alimento deletado com sucesso!", page, dialogo_deletar)
+                atualizar_tabela_a(table)
             else:
                 show_error_popup("Alimento não encontrado.", page)  # Correção da mensagem de erro
 
@@ -833,7 +860,7 @@ def main(page: ft.Page):
                 port="3306"
             )
             cursor = conn.cursor()
-            cursor.execute("SELECT nome, calorias_totais FROM dieta")
+            cursor.execute("SELECT id, nome, calorias_totais FROM dieta")
             result = cursor.fetchall()
 
             table.rows.clear()
@@ -841,8 +868,9 @@ def main(page: ft.Page):
             for dieta in result:
                 nova_linha = ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(dieta[0])),
-                        ft.DataCell(ft.Text(str(dieta[1]))),
+                        ft.DataCell(ft.Text(str(dieta[0]))),  # id
+                        ft.DataCell(ft.Text(dieta[1])),  # Nome
+                        ft.DataCell(ft.Text(str(dieta[2]))),  # Calorias
                     ]
                 )
                 table.rows.append(nova_linha)
@@ -871,13 +899,16 @@ def main(page: ft.Page):
             ),
             actions=[ft.TextButton("Fechar", on_click=close_popup)],
         )
-        page.dialog = tutorial
-        page.dialog.open = True
+        show_cadastro_refeicao(page)  # Mostra a tela de cadastro de refeição
+        page.dialog = tutorial  # Define o tutorial como um diálogo popup
+        page.dialog.open = True  # Abre o popup
         page.update()
 
-    def show_cadastro_refeicao(page):
-        dietas = buscar_dietas()
 
+    def show_cadastro_refeicao(page):
+        dietas = buscar_dietas()  # Busca as dietas disponíveis no banco de dados
+
+        # Cria um dropdown para selecionar a refeição
         dropdown_refeicao = ft.Dropdown(
             label="Selecione a Refeição",
             options=[
@@ -888,28 +919,48 @@ def main(page: ft.Page):
             ]
         )
 
-        input_horario = ft.TextField(label="Horário (HH:MM)")
-        dropdown_dieta = ft.Dropdown(label="Selecione a Dieta", options=[
-            ft.dropdown.Option(dieta[0], dieta[1]) for dieta in dietas
-        ])
+        input_horario = ft.TextField(label="Horário (HH:MM)")  # Campo de texto para o horário
 
+        # Cria um dropdown para selecionar a dieta
+        dropdown_dieta = ft.Dropdown(
+            label="Selecione a Dieta",
+            options=[
+                ft.dropdown.Option(str(dieta[0]), dieta[1]) for dieta in dietas
+            ]
+        )
+
+        # Função para confirmar a refeição e passar para a próxima tela
         def confirmar_refeicao(e):
             nome_refeicao = dropdown_refeicao.value
             horario = input_horario.value
             id_dieta = dropdown_dieta.value
 
+            # Validação básica para verificar se os campos estão preenchidos
             if nome_refeicao and horario and id_dieta:
                 id_refeicao = cadastrar_refeicao(nome_refeicao, horario, id_dieta)
                 if id_refeicao:
                     show_cadastro_alimento(page, id_refeicao)
+                    
+                    # Limpar os campos após o cadastro
+                    dropdown_refeicao.value = None
+                    input_horario.value = ""
+                    dropdown_dieta.value = None
 
+                    # Atualiza a página para refletir as alterações
+                    page.update()
+            else:
+                print("Preencha todos os campos!")
+
+        # Adiciona os componentes à página
         page.add(
-            dropdown_refeicao, 
-            input_horario, 
+            dropdown_refeicao,
+            input_horario,
             dropdown_dieta,
             ft.ElevatedButton("Confirmar", on_click=confirmar_refeicao)
         )
 
+
+    # Função para buscar dietas no banco de dados
     def buscar_dietas():
         try:
             conn = mysql.connector.connect(
@@ -929,6 +980,8 @@ def main(page: ft.Page):
             cursor.close()
             conn.close()
 
+
+    # Função para cadastrar a refeição no banco de dados
     def cadastrar_refeicao(nome, horario, id_dieta):
         try:
             conn = mysql.connector.connect(
@@ -944,16 +997,21 @@ def main(page: ft.Page):
                 VALUES (%s, %s, %s)
             """, (nome, horario, int(id_dieta)))
             conn.commit()
-            return cursor.lastrowid
+            atualizar_tabela_b(table)
+            return cursor.lastrowid  # Retorna o ID da refeição criada
         except mysql.connector.Error as err:
             print(f"Erro ao cadastrar refeição: {err}")
+            return None
         finally:
             cursor.close()
             conn.close()
 
-    def show_cadastro_alimento(page, id_refeicao):
-        alimentos = buscar_alimentos()
 
+    # Função para mostrar o cadastro de alimentos após a refeição ter sido cadastrada
+    def show_cadastro_alimento(page, id_refeicao):
+        alimentos = buscar_alimentos()  # Busca os alimentos no banco de dados
+
+        # Cria uma tabela para exibir os alimentos disponíveis
         table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("ID")),
@@ -976,9 +1034,13 @@ def main(page: ft.Page):
             ]
         )
 
+        # Mostra o formulário em um popup com uma barra de rolagem
         form = ft.AlertDialog(
             title=ft.Text("Cadastro de Alimentos"),
-            content=ft.Column([table]),
+            content=ft.Container(
+                content=ft.Column([table], scroll=ft.ScrollMode.AUTO),
+                width=500, height=300  # Define um tamanho fixo para a barra de rolagem
+            ),
             actions=[
                 ft.TextButton("Concluir", on_click=lambda e: page.dialog.close()),
                 ft.TextButton("Cancelar", on_click=lambda e: page.dialog.close())
@@ -986,9 +1048,11 @@ def main(page: ft.Page):
         )
 
         page.dialog = form
-        page.dialog.open = True
+        page.dialog.open = True  # Abre o popup
         page.update()
 
+
+    # Função para buscar os alimentos no banco de dados
     def buscar_alimentos():
         try:
             conn = mysql.connector.connect(
@@ -1002,27 +1066,11 @@ def main(page: ft.Page):
             cursor.execute("SELECT id, nome, calorias FROM alimento")
             return cursor.fetchall()
         except mysql.connector.Error as err:
-            print(f"Erro: {err}")
+            print(f"Erro ao buscar alimentos: {err}")
             return []
         finally:
             cursor.close()
             conn.close()
-
-    def adicionar_quantidade_medida(page, id_alimento, id_refeicao):
-        dropdown_medida = ft.Dropdown(label="Selecione a Medida", options=buscar_medidas())
-        input_quantidade = ft.TextField(label="Quantidade")
-
-        popup = ft.AlertDialog(
-            title=ft.Text("Adicionar Quantidade"),
-            content=ft.Column([dropdown_medida, input_quantidade]),
-            actions=[
-                ft.TextButton("Adicionar", on_click=lambda e: confirmar_quantidade_medida(page, input_quantidade, dropdown_medida, id_alimento, id_refeicao)),
-                ft.TextButton("Cancelar", on_click=lambda e: close_popup(page))
-            ]
-        )
-
-        page.overlay.append(popup)
-        page.update()
 
     def buscar_medidas():
         try:
@@ -1035,7 +1083,9 @@ def main(page: ft.Page):
             )
             cursor = conn.cursor()
             cursor.execute("SELECT id, tipo_quan FROM medida")
-            return [ft.dropdown.Option(medida[0], medida[1]) for medida in cursor.fetchall()]
+            return [
+                ft.dropdown.Option(str(medida[0]), medida[1]) for medida in cursor.fetchall()
+            ]
         except mysql.connector.Error as err:
             print(f"Erro ao buscar medidas: {err}")
             return []
@@ -1043,12 +1093,37 @@ def main(page: ft.Page):
             cursor.close()
             conn.close()
 
+    # Função para adicionar a quantidade e a medida de um alimento
+    def adicionar_quantidade_medida(page, id_alimento, id_refeicao):
+        dropdown_medida = ft.Dropdown(label="Selecione a Medida", options=buscar_medidas())  # Busca as medidas
+        input_quantidade = ft.TextField(label="Quantidade")
+
+        # Popup para adicionar a quantidade
+        popup = ft.AlertDialog(
+            title=ft.Text("Adicionar Quantidade"),
+            content=ft.Column([dropdown_medida, input_quantidade]),
+            actions=[
+                ft.TextButton("Adicionar", on_click=lambda e: confirmar_quantidade_medida(page, input_quantidade, dropdown_medida, id_alimento, id_refeicao)),
+                ft.TextButton("Cancelar", on_click=lambda e: close_popup(page, id_refeicao))
+            ]
+        )
+
+        page.dialog = popup
+        page.dialog.open = True  # Abre o popup
+        page.update()
+
+    # Função para confirmar a quantidade e salvar no banco de dados
     def confirmar_quantidade_medida(page, input_quantidade, dropdown_medida, id_alimento, id_refeicao):
         quantidade = input_quantidade.value
         id_medida = dropdown_medida.value
 
         if quantidade and id_medida:
             try:
+                # Verifica se a quantidade é um número
+                if not quantidade.isdigit():
+                    print("Por favor, insira uma quantidade válida.")
+                    return
+                
                 conn = mysql.connector.connect(
                     host="localhost",
                     user="root",
@@ -1057,24 +1132,35 @@ def main(page: ft.Page):
                     port="3306"
                 )
                 cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO refeicao_alimento (id_refeicao, id_alimento, quantidade, tipo_medida) 
-                    VALUES (%s, %s, %s, %s)
-                """, (id_refeicao, id_alimento, quantidade, int(id_medida)))
-                conn.commit()
-                print(f"Alimento adicionado: ID {id_alimento}, Quantidade: {quantidade}, ID Medida: {id_medida}")
 
+                # Converte a quantidade para inteiro
+                quantidade_int = int(quantidade)
+
+                cursor.execute("""
+                    INSERT INTO refeicao_alimento (id_refeicao, id_alimento, quantidade, tipo_medida)
+                    VALUES (%s, %s, %s, %s)
+                """, (id_refeicao, id_alimento, quantidade_int, id_medida))  # O id_medida deve ser um valor que existe na tabela medida
+                conn.commit()
+                print(f"Alimento adicionado: ID {id_alimento}, Quantidade: {quantidade_int}, ID Medida: {id_medida}")
             except mysql.connector.Error as err:
                 print(f"Erro ao salvar refeicao_alimento: {err}")
             finally:
                 cursor.close()
                 conn.close()
 
-            close_popup(page)  # Fecha o dialog após confirmar
+            # Fechar o popup e reabrir a tabela de alimentos
+            close_popup(page, id_refeicao)
+        else:
+            print("Por favor, preencha todos os campos antes de confirmar.")
 
-    def close_popup(page):
-        page.overlay.pop()
+
+    # Função para fechar o popup e reabrir a tela de cadastro de alimentos
+    def close_popup(page, id_refeicao):
+        page.dialog.open = False  # Fecha o popup atual
         page.update()
+
+        # Reabre o cadastro de alimentos para a mesma refeição
+        show_cadastro_alimento(page, id_refeicao)
 
 
     def show_dialog_delete_refeicao():
@@ -1105,6 +1191,7 @@ def main(page: ft.Page):
             cursor.execute("DELETE FROM refeicao_alimento WHERE id_refeicao = %s", (id_refeicao,))
             conn.commit()
             show_success_popup("Refeição apagada com sucesso!")
+            atualizar_tabela_b(table)
         except mysql.connector.Error as err:
             print(f"Erro: {err}")
             show_error_popup("Erro ao apagar a refeição.")
@@ -1112,7 +1199,124 @@ def main(page: ft.Page):
             cursor.close()
             conn.close()
         dialog.dismiss()
-        atualizar_tabela_b(table)
+        
+    def enviar_dieta_dialog():
+        # Conectar ao banco de dados e obter dietas e usuários
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            cursor = conn.cursor()
+
+            # Obter dietas da tabela dieta
+            cursor.execute("SELECT id, nome FROM dieta")
+            dietas = cursor.fetchall()
+
+            # Obter usuários com status de "paciente"
+            cursor.execute("SELECT id, nome FROM usuario WHERE tipo = 'paciente'")
+            usuarios = cursor.fetchall()
+
+        except mysql.connector.Error as err:
+            ft.dialog = ft.AlertDialog(
+                title=ft.Text("Erro"),
+                content=ft.Text(f"Erro ao conectar ao banco de dados: {err}"),
+                actions=[ft.ElevatedButton("OK", on_click=lambda e: page.overlay.remove(dialog))]
+            )
+            page.overlay.append(ft.dialog)
+            page.update()
+            return
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        # Dropdown para selecionar dieta
+        dropdown_dieta = ft.Dropdown(
+            label="Selecione a Dieta",
+            options=[ft.dropdown.Option(str(dieta[0]), dieta[1]) for dieta in dietas]
+        )
+
+        # Dropdown para selecionar usuário
+        dropdown_usuario = ft.Dropdown(
+            label="Selecione o Usuário",
+            options=[ft.dropdown.Option(str(usuario[0]), usuario[1]) for usuario in usuarios]
+        )
+
+        # Função para salvar a dieta selecionada no usuário
+        def salvar_dieta(e):
+            dieta_id = dropdown_dieta.value
+            usuario_id = dropdown_usuario.value
+
+            if not dieta_id or not usuario_id:
+                ft.dialog = ft.AlertDialog(
+                    title=ft.Text("Erro"),
+                    content=ft.Text("Por favor, selecione uma dieta e um usuário"),
+                    actions=[ft.ElevatedButton("OK", on_click=lambda e: page.overlay.remove(dialog))]
+                )
+                page.overlay.append(ft.dialog)
+                page.update()
+                return
+
+            # Atualizar a tabela usuario com a dieta selecionada
+            try:
+                conn = mysql.connector.connect(
+                    host="localhost",
+                    user="root",
+                    password="acesso123",
+                    database="dietas",
+                    port="3306"
+                )
+                cursor = conn.cursor()
+                # Atualizar o usuário com a dieta selecionada
+                cursor.execute("UPDATE usuario SET dieta = %s WHERE id = %s", (dieta_id, usuario_id))
+                conn.commit()
+
+                # Popup de sucesso
+                ft.dialog = ft.AlertDialog(
+                    title=ft.Text("Sucesso"),
+                    content=ft.Text("Dieta atribuída ao usuário com sucesso!"),
+                    actions=[ft.ElevatedButton("OK", on_click=lambda e: page.overlay.remove(ft.dialog))]
+                )
+                page.overlay.append(ft.dialog)
+                page.update()
+
+            except mysql.connector.Error as err:
+                ft.dialog = ft.AlertDialog(
+                    title=ft.Text("Erro"),
+                    content=ft.Text(f"Erro ao salvar dieta: {err}"),
+                    actions=[ft.ElevatedButton("OK", on_click=lambda e: page.overlay.remove(dialog))]
+                )
+                page.overlay.append(ft.dialog)
+                page.update()
+
+            finally:
+                cursor.close()
+                conn.close()
+                # Não fechar o diálogo aqui, apenas removê-lo após a ação
+
+        # Criar o AlertDialog com os dois dropdowns
+        dialog = ft.AlertDialog(
+            title=ft.Text("Atribuir Dieta ao Usuário"),
+            content=ft.Column(
+                controls=[
+                    dropdown_dieta,
+                    dropdown_usuario,
+                    ft.ElevatedButton("Salvar", on_click=salvar_dieta)
+                ]
+            ),
+            actions=[
+                ft.ElevatedButton("Cancelar", on_click=lambda e: page.overlay.remove(dialog))  # Fecha o diálogo de atribuição
+            ]
+        )
+
+        # Adiciona o diálogo à lista de overlays da página e o abre
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
     
     def page_nutro(page: ft.Page):
         def page_dietas():
@@ -1128,7 +1332,7 @@ def main(page: ft.Page):
                     port="3306"
                 )
                 cursor = conn.cursor()
-                cursor.execute("SELECT nome, calorias_totais FROM dieta")
+                cursor.execute("SELECT id, nome, calorias_totais FROM dieta")
                 result = cursor.fetchall()
 
             except mysql.connector.Error as err:
@@ -1148,7 +1352,6 @@ def main(page: ft.Page):
                         controls=[
                             ft.Text("Nenhuma dieta a ver", size=20, color="#D3D3D3"),
                             ft.ElevatedButton("Adicionar dieta", icon=ft.icons.ADD, on_click=lambda e: cadastrar_dieta(page)),
-                            ft.ElevatedButton("Atualizar", icon=ft.icons.ADD, on_click=lambda e: atualizar_tabela(table))
                         ]
                     ),
                     padding=ft.padding.all(20),
@@ -1162,7 +1365,7 @@ def main(page: ft.Page):
 
             boot1 = ft.ElevatedButton("Adicionar Dieta", icon=ft.icons.ADD, on_click=lambda e: cadastrar_dieta(page))
             boot2 = ft.ElevatedButton("Apagar Dieta", icon=ft.icons.REMOVE, on_click=lambda e: deletar_dieta(page))
-            boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela(table))
+            boot3 = ft.ElevatedButton("Enviar dieta", icon=ft.icons.REFRESH, on_click=lambda e: enviar_dieta_dialog())
 
             title_container = ft.Container(
                 content=ft.Text("Dietas", size=30, color="white"),
@@ -1174,6 +1377,7 @@ def main(page: ft.Page):
 
             table = ft.DataTable(
                 columns=[
+                    ft.DataColumn(ft.Text("id")),
                     ft.DataColumn(ft.Text("Nome")),
                     ft.DataColumn(ft.Text("Calorias Totais")),
                 ],
@@ -1183,8 +1387,9 @@ def main(page: ft.Page):
             for dieta in result:
                 nova_linha = ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(dieta[0])),
+                        ft.DataCell(ft.Text(int(dieta[0]))),
                         ft.DataCell(ft.Text(str(dieta[1]))),
+                        ft.DataCell(ft.Text(str(dieta[2]))),
                     ]
                 )
                 table.rows.append(nova_linha)
@@ -1227,7 +1432,7 @@ def main(page: ft.Page):
                     port="3306"
                 )
                 cursor = conn.cursor()
-                cursor.execute("SELECT nome, calorias_totais FROM dieta")
+                cursor.execute("SELECT id, nome, calorias_totais FROM dieta")
                 result = cursor.fetchall()
 
             except mysql.connector.Error as err:
@@ -1239,11 +1444,12 @@ def main(page: ft.Page):
                 conn.close()
 
             for dieta in result:
-                if search_value in dieta[0].lower():
+                if search_value in dieta[1].lower():
                     nova_linha = ft.DataRow(
                         cells=[
-                            ft.DataCell(ft.Text(dieta[0])),
-                            ft.DataCell(ft.Text(str(dieta[1]))),
+                            ft.DataCell(ft.Text(str(dieta[0]))),  # id
+                            ft.DataCell(ft.Text(dieta[1])),  # Nome
+                            ft.DataCell(ft.Text(str(dieta[2]))),  # Calorias
                         ]
                     )
                     filtered_rows.append(nova_linha)
@@ -1285,7 +1491,6 @@ def main(page: ft.Page):
 
                 boot1 = ft.ElevatedButton("Adicionar Alimento", icon=ft.icons.ADD, on_click=lambda e: cadastrar_alimento(page))
                 boot2 = ft.ElevatedButton("Apagar Alimento", icon=ft.icons.REMOVE, on_click=lambda e: deletar_alimento_a(page))
-                boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela_a(table))
 
                 title_container = ft.Container(
                     content=ft.Text("Alimentos", size=30, color="white"),
@@ -1341,7 +1546,7 @@ def main(page: ft.Page):
                             title_container,
                             table_container,
                             ft.Row(
-                                controls=[boot1, boot2, boot3],
+                                controls=[boot1, boot2],
                                 alignment=ft.MainAxisAlignment.CENTER,
                             ),
                         ]
@@ -1356,7 +1561,6 @@ def main(page: ft.Page):
                         controls=[
                             ft.Text("Nenhum alimento a ver", size=20, color="#D3D3D3"),
                             ft.ElevatedButton("Adicionar Alimento", icon=ft.icons.ADD, on_click=lambda e: cadastrar_alimento(page)),
-                            ft.ElevatedButton("Atualizar", icon=ft.icons.ADD, on_click=lambda e: atualizar_tabela_a(table))
                         ]
                     ),
                     padding=ft.padding.all(20),
@@ -1438,8 +1642,6 @@ def main(page: ft.Page):
 
                 boot1 = ft.ElevatedButton("Adicionar refeição", icon=ft.icons.ADD, on_click=lambda e: show_tutorial(page))
                 boot2 = ft.ElevatedButton("Apagar refeição", icon=ft.icons.REMOVE, on_click=lambda e: show_dialog_delete_refeicao())
-                boot3 = ft.ElevatedButton("Atualizar Tabela", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela_b(table))
-                boot4 = ft.ElevatedButton("Enviar dieta", icon=ft.icons.REFRESH, on_click=lambda e: atualizar_tabela_b(table))
 
                 title_container = ft.Container(
                     content=ft.Text("Refeição", size=30, color="white"),
@@ -1490,7 +1692,7 @@ def main(page: ft.Page):
                             title_container,
                             table_container,
                             ft.Row(
-                                controls=[boot1, boot2, boot3, boot4],
+                                controls=[boot1, boot2],
                                 alignment=ft.MainAxisAlignment.CENTER,
                             ),
                         ]
@@ -1514,11 +1716,10 @@ def main(page: ft.Page):
 
         def update_table(search_value):
             global table  # Acessa a tabela como global
-            # Filtra a tabela com base no valor da pesquisa
             filtered_rows = []
             search_value = search_value.lower()  # Normaliza a busca para letras minúsculas
 
-            # Realiza a consulta ao banco de dados para obter os alimentos
+            # Realiza a consulta ao banco de dados para obter as refeições
             try:
                 conn = mysql.connector.connect(
                     host="localhost",
@@ -1528,7 +1729,7 @@ def main(page: ft.Page):
                     port="3306"
                 )
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, nome, calorias, proteinas, carboidratos, gorduras FROM alimento")
+                cursor.execute("SELECT id, nome, horario, dieta FROM refeicao")
                 result = cursor.fetchall()
 
             except mysql.connector.Error as err:
@@ -1539,17 +1740,19 @@ def main(page: ft.Page):
                 cursor.close()
                 conn.close()
 
-            # Filtra os resultados de acordo com a pesquisa
-            for alimento in result:
-                if search_value in alimento[1].lower():  # Verifica se o nome do alimento contém o valor da pesquisa
+            # Filtra os resultados de acordo com o valor da pesquisa
+            for refeicao in result:
+                id_refeicao = str(refeicao[0])  # Converte o id para string para facilitar a busca
+                nome_refeicao = refeicao[1].lower()  # Converte o nome para letras minúsculas
+
+                # Verifica se o ID ou o nome da refeição contém o valor da pesquisa
+                if search_value in id_refeicao or search_value in nome_refeicao:
                     nova_linha = ft.DataRow(
                         cells=[
-                            ft.DataCell(ft.Text(alimento[0])),  # ID
-                            ft.DataCell(ft.Text(str(alimento[1]))),
-                            ft.DataCell(ft.Text(str(alimento[2]))),
-                            ft.DataCell(ft.Text(str(alimento[3]))),
-                            ft.DataCell(ft.Text(str(alimento[4]))),
-                            ft.DataCell(ft.Text(str(alimento[5]))),
+                            ft.DataCell(ft.Text(str(refeicao[0]))),  # ID
+                            ft.DataCell(ft.Text(refeicao[1])),  # Nome
+                            ft.DataCell(ft.Text(refeicao[2])),  # Horário
+                            ft.DataCell(ft.Text(refeicao[3]))  # Dieta
                         ]
                     )
                     filtered_rows.append(nova_linha)
@@ -1560,24 +1763,28 @@ def main(page: ft.Page):
 
         def tab_click(e):
             page.clean()
-            page.add(tabs)
+            page.add(tabs)  # Apenas adiciona as abas
+
             selected_index = e.control.selected_index
             if selected_index == 0:
                 page_dietas()
             elif selected_index == 1:
                 main_content = page_alimentos()
                 page.add(main_content)
-                
             elif selected_index == 2:
                 main_content = page_refeicoes()
                 page.add(main_content)
 
+            # Adiciona o botão "Voltar ao Login" que chama o popup
+            voltar_button = ft.ElevatedButton("Voltar ao Login", on_click=lambda e: show_popup_voltar_login())
+            page.add(voltar_button)
+
         tabs = ft.Tabs(
             selected_index=0,
             tabs=[
-            ft.Tab(text="Dietas", icon=ft.icons.FOOD_BANK),
-            ft.Tab(text="Alimentos", icon=ft.icons.RESTAURANT),
-            ft.Tab(text="Refeições", icon=ft.icons.DINNER_DINING)
+                ft.Tab(text="Dietas", icon=ft.icons.FOOD_BANK),
+                ft.Tab(text="Alimentos", icon=ft.icons.RESTAURANT),
+                ft.Tab(text="Refeições", icon=ft.icons.DINNER_DINING)
             ],
             on_change=tab_click
         )
@@ -1585,15 +1792,186 @@ def main(page: ft.Page):
         page.add(tabs)
         page_dietas()
         
-    def page_paci(page: ft.Page):
-        
+    def conectar_banco_dados():
+        try:
+                # Para MySQL
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="acesso123",
+                database="dietas",
+                port="3306"
+            )
+            return conn
+        except mysql.connector.Error as e:
+            print(f"Erro ao conectar ao banco de dados: {e}")
+            return None
+            
+    def page_paci(page: ft.Page, usuario_id: int):
+        # Conecte-se ao banco de dados
+        conn = conectar_banco_dados()
+        if conn is None:
             aviso_container = ft.Container(
-                content=ft.Text("Aviso: Esta página ainda está em desenvolvimento!", size=20, color="red"),
+                content=ft.Text("Erro ao conectar ao banco de dados!", size=20, color="red"),
+                alignment=ft.alignment.center,
+                padding=ft.padding.all(20)
+            )
+            page.add(aviso_container)
+            return
+
+        cursor = conn.cursor()
+
+        try:
+            # Busque a dieta do usuário
+            cursor.execute("SELECT dieta, imc FROM usuario WHERE id = %s", (usuario_id,))
+            usuario_info = cursor.fetchone()
+
+            if usuario_info:
+                dieta_id, imc = usuario_info  # Obtenha o ID da dieta e o IMC
+
+                # Busque o nome da dieta
+                cursor.execute("SELECT nome, calorias_totais FROM dieta WHERE id = %s", (dieta_id,))
+                dieta_info = cursor.fetchone()
+
+                if dieta_info:
+                    dieta_nome, calorias_totais = dieta_info  # Obtenha o nome e as calorias da dieta
+
+                    # Busque as refeições da dieta
+                    cursor.execute("SELECT id, nome, horario FROM refeicao WHERE Dieta = %s", (dieta_id,))
+                    refeicoes = cursor.fetchall()  # Inicializa a variável aqui
+
+                    # Limpe a página antes de adicionar novos conteúdos
+                    page.clean()
+
+                    # Crie um container com fundo cinza
+                    title_container = ft.Container(
+                        content=ft.Text("Sua Dieta", size=24, weight="bold", color="blue"),
+                        alignment=ft.alignment.center
+                    )
+
+                    # Adicione o botão de voltar
+                    voltar_button = ft.ElevatedButton(
+                        text="Voltar",
+                        on_click=lambda e: show_popup_voltar_login()  # Substitua aqui com a lógica para voltar à página anterior
+                    )
+
+                    dieta_info_container = ft.Column(
+                        controls=[
+                            ft.Row([ft.Text("Nome da Dieta:", size=18, weight="bold"), ft.Text(dieta_nome, size=18)]),
+                            ft.Row([ft.Text("Calorias Totais:", size=18, weight="bold"), ft.Text(str(calorias_totais), size=18)]),
+                            ft.Divider(),
+                            ft.Text("Refeições:", size=20, weight="bold")
+                        ]
+                    )
+
+                    # Crie o container principal com altura fixa
+                    container = ft.Container(
+                        content=ft.Column(
+                            controls=[title_container, voltar_button, dieta_info_container],
+                            scroll=ft.ScrollMode.AUTO,  # Habilitar a rolagem automática aqui
+                        ),
+                        bgcolor="#4F4F4F",
+                        padding=ft.padding.all(20),
+                        margin=ft.margin.all(10),
+                        border_radius=10,
+                        height=400  # Defina uma altura fixa para o container
+                    )
+
+                    # Se houver refeições, adicione-as ao container
+                    if refeicoes:  # Verifica se há refeições
+                        for refeicao in refeicoes:
+                            id_refeicao, nome_refeicao, horario_refeicao = refeicao
+                            refeicao_info = ft.Column(
+                                controls=[
+                                    ft.Text(f"Refeição: {nome_refeicao} (Horário: {horario_refeicao})", size=18),
+                                ]
+                            )
+
+                            # Busque os alimentos dessa refeição
+                            cursor.execute("""
+                                SELECT a.nome, ra.quantidade, m.tipo_quan 
+                                FROM refeicao_alimento ra 
+                                JOIN alimento a ON ra.id_alimento = a.id 
+                                JOIN medida m ON ra.tipo_medida = m.id 
+                                WHERE ra.id_refeicao = %s
+                            """, (id_refeicao,))
+                            alimentos = cursor.fetchall()
+
+                            if alimentos:  # Verifica se há alimentos para a refeição
+                                for alimento in alimentos:
+                                    nome_alimento, quantidade, tipo_medida = alimento
+                                    refeicao_info.controls.append(ft.Text(f"  - {nome_alimento}: {quantidade} {tipo_medida}", size=16))
+                            else:
+                                refeicao_info.controls.append(ft.Text("  - Nenhum alimento encontrado para esta refeição.", size=16, color="orange"))
+
+                            # Adicione a refeição ao container principal
+                            container.content.controls.append(refeicao_info)  # Adicione à lista de controles
+
+                    else:
+                        dieta_info_container.controls.append(ft.Text("Nenhuma refeição encontrada para esta dieta.", size=16, color="orange"))
+
+                    # Adicione o container da dieta à página
+                    page.add(container)
+
+                    # Adicione o container "Dietas Recomendadas"
+                    recomendacoes_container = ft.Column(
+                        controls=[
+                            ft.Text("Dietas Recomendadas", size=24, weight="bold", color="blue"),
+                            ft.Text("Atenção, são só recomendações, para mais informações, converse com um nutrólogo.", size=16),
+                            ft.Divider()
+                        ]
+                    )
+
+                    # Busque as dietas recomendadas com base no IMC
+                    cursor.execute("SELECT nome FROM dieta WHERE calorias_totais >= %s", (imc,))  # Ajuste a lógica conforme necessário
+                    dietas_recomendadas = cursor.fetchall()
+
+                    if dietas_recomendadas:
+                        for dieta in dietas_recomendadas:
+                            nome_dieta = dieta[0]
+                            recomendacoes_container.controls.append(ft.Text(f"- {nome_dieta}", size=18))
+                    else:
+                        recomendacoes_container.controls.append(ft.Text("Nenhuma dieta recomendada para o seu IMC.", size=16, color="orange"))
+
+                    # Adicione o container de recomendações à página
+                    page.add(recomendacoes_container)
+
+                else:
+                    aviso_container = ft.Container(
+                        content=ft.Text("Dieta não encontrada!", size=20, color="red"),
+                        alignment=ft.alignment.center,
+                        padding=ft.padding.all(20)
+                    )
+                    page.add(aviso_container)
+            else:
+                aviso_container = ft.Container(
+                    content=ft.Text("Nenhuma dieta para você!", size=20, color="red"),
+                    alignment=ft.alignment.center,
+                    padding=ft.padding.all(20)
+                )
+                page.add(aviso_container)
+
+        except mysql.connector.Error as err:
+            print(f"Erro ao acessar os dados: {err}")
+            aviso_container = ft.Container(
+                content=ft.Text("Erro ao acessar os dados!", size=20, color="red"),
                 alignment=ft.alignment.center,
                 padding=ft.padding.all(20)
             )
             page.add(aviso_container)
 
+        finally:
+            cursor.close()
+            conn.close()
+
+    def calcular_calorias_recomendadas(imc):
+        # Exemplo simples de cálculo de calorias com base no IMC
+        # Isso deve ser ajustado de acordo com as diretrizes nutricionais
+        # Aqui, definimos uma média de 2000 calorias para um IMC normal
+        calorias_base = 2000  
+        # Para cada ponto acima de 25 no IMC, reduza as calorias
+        calorias_reduzidas = calorias_base - (imc - 25) * 200  # Ajuste esse fator conforme necessário
+        return max(calorias_reduzidas, 1200)
 
 
 ft.app(target=main)
