@@ -1,3 +1,7 @@
+
+
+
+
 import mysql.connector
 from PySimpleGUI import *
 from datetime import datetime,timedelta
@@ -5,7 +9,11 @@ from datetime import datetime,timedelta
 
 filtro = ['Todos','Nome', 'Criador', 'Calorias']
 
+import json
+import os
 
+# Caminho para o arquivo JSON que armazenará o tema
+CAMINHO_JSON = 'tema_atual.json'
 #########################################################   NUTROLOGO  #############################################################################################       NUTROLOGO        ##############################################################
 
 
@@ -23,20 +31,50 @@ def conectar_bd():
 def fetch_books(id_criador):
     conn = conectar_bd()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nome, calorias_totais, criador, email  FROM dieta WHERE id_criador=%s AND apagado = nao AND em_branco = 'nao'",(id_criador,))
-    dados = cursor.fetchall()
-    conn.close()
+    try:
+        cursor.execute("SELECT id, nome, calorias_totais, criador, email  FROM dieta WHERE id_criador=%s AND apagado = nao AND em_branco = 'nao'",(id_criador,))
+        dados = cursor.fetchall()
+
+    except:
+        dados =''
+    finally:
+                conn.close()
+        
     return dados
 
 
 def gerar_dados_estruturados(dados):
+    
     tree_data = TreeData()
     for i, item in enumerate(dados):
         tree_data.insert("", int(item[0]), f"{item[0]}", item[1:])
     return tree_data
 
 
+def somar_calorias_dieta(id_dieta):
+    conn = conectar_bd()  # Conexão com o banco de dados
+    cursor = conn.cursor()
+    try:
+        # Consulta para somar as calorias dos alimentos em todas as refeições associadas a uma dieta
+        cursor.execute('''
+            SELECT SUM(a.calorias * r.quantia) AS total_calorias
+            FROM refeiçao r
+            JOIN alimentos a ON r.id_alimento = a.id
+            WHERE r.id_dieta = %s AND r.apagado = 'nao'
+        ''', (id_dieta,))
+        
+        resultado = cursor.fetchone()
+        total_calorias = resultado[0] if resultado[0] is not None else 0  # Verifica se o resultado é None
+        
+
+        return total_calorias
     
+    except Exception as e:
+        popup(f"Erro ao calcular calorias: {e}", title='Erro')
+        print(e)
+        return None
+    finally:
+        conn.close()   
 # Classe Livro para manipular os dados de livros
 class Dieta:
     def __init__(self, id,nome,calorias_totais,criador,email,id_criador):
@@ -66,41 +104,49 @@ class Dieta:
             conn.close()
 
 def fetch_books2(id_dieta):
-    conn = conectar_bd()
-    cursor = conn.cursor()
-    
-    # Primeiro, busca todas as informações da tabela refeição
-    cursor.execute("SELECT id, nome, horario, id_alimento, quantia,typo,preparo FROM refeiçao WHERE id_criador=%s AND apagado = 'nao'", (id_dieta,))
-    dados_refeicoes = cursor.fetchall()
-    
-    refeicoes_com_nomes = []
-    
-    for refeicao in dados_refeicoes:
-        id_alimento = refeicao[3]
-        
-        # Para cada refeição, buscamos o nome do alimento correspondente ao id_alimento
-        cursor.execute("SELECT nome FROM alimentos WHERE id=%s", (id_alimento,))
-        alimento = cursor.fetchone()
-        
-        # Substitui o id_alimento pelo nome do alimento
-        if alimento:
-            refeicao = list(refeicao)  # Converter para lista para ser mutável
-            refeicao[3] = alimento[0]  # Substitui o id_alimento pelo nome do alimento
-            refeicoes_com_nomes.append(tuple(refeicao))  # Converter de volta para tupla
 
-    conn.close()
+    try:
+        conn = conectar_bd()
+        cursor = conn.cursor()
+        
+        # Busca todas as informações da tabela refeição
+        cursor.execute("SELECT id, nome, horario, id_alimento, quantia, typo, preparo FROM refeiçao WHERE id_dieta=%s AND apagado = 'nao'", (id_dieta,))
+        dados_refeicoes = cursor.fetchall()
+        
+        refeicoes_com_nomes = []
+        
+        for refeicao in dados_refeicoes:
+            id_alimento = refeicao[3]
+            
+            # Para cada refeição, buscamos o nome do alimento correspondente ao id_alimento
+            cursor.execute("SELECT nome FROM alimentos WHERE id=%s", (id_alimento,))
+            alimento = cursor.fetchone()
+            
+            # Verifica se o alimento foi encontrado e substitui o id_alimento pelo nome do alimento
+            if alimento:
+                refeicao_lista = list(refeicao)  # Converter para lista para permitir mutação
+                refeicao_lista[3] = alimento[0]  # Substitui o id_alimento pelo nome do alimento
+                refeicoes_com_nomes.append(tuple(refeicao_lista))  # Converter de volta para tupla
+
+    except Exception as e:
+        print(f"Erro ao buscar refeições: {e}")  # Exibe o erro no terminal
+        refeicoes_com_nomes = []  # Retorna uma lista vazia em caso de erro
+    finally:
+        conn.close()  # Fecha a conexão com o banco de dados
     
     return refeicoes_com_nomes
+
     
 
 def adicionar_alimento(nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,quantia,id_criador):
         conn = conectar_bd()
         cursor = conn.cursor()
         try:
+    
             cursor.execute('''
-                INSERT INTO alimentos (nome,calorias,proteinas,carboidratos,gorduras,tipo_pesagem,apagado,quantia)
+                INSERT INTO alimentos (nome,calorias,proteinas,carboidratos,gorduras,tipo_pesagem,id_criador,apagado,quantia)
                 VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s)
-            ''', (nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,id_criador,'nao',quantia,id_criador))
+            ''', (nome,calorias,proteina,carboidratos,gorduras,typo_pesagem,id_criador,'nao',quantia,))
             conn.commit()
             popup('alimento adicionado com sucesso', title='Sucesso')
         except Exception as e:
@@ -109,12 +155,96 @@ def adicionar_alimento(nome,calorias,proteina,carboidratos,gorduras,typo_pesagem
             conn.close()
             
 def fetch_books_4(id_):
+    id_ =[id_]
     conn = conectar_bd()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nome, calorias, proteinas, carboidratos,gorduras,tipo_pesagem, quantia  FROM alimentos WHERE apagado = 'nao' ")
+    cursor.execute("SELECT id, nome, calorias, proteinas, carboidratos,gorduras,tipo_pesagem, quantia  FROM alimentos WHERE apagado = 'nao' AND id_criador = %s",(id_))
     dados = cursor.fetchall()
     conn.close()
     return dados
+
+def fetch_books_5(id_):
+    id_ =[id_]
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nome, calorias, proteinas, carboidratos,gorduras,tipo_pesagem, quantia  FROM alimentos WHERE apagado = 'sim' AND id_criador = %s",(id_))
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+def restalrar_alimento(idl):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE alimentos
+            SET apagado = %s
+            WHERE id = %s
+        """, ('nao', idl))
+        conn.commit()
+        popup('Alimento  restaurado  com sucesso', title='Sucesso')
+    except Exception as e:
+        popup(f"Erro ao restaurar o alimento : {e}", title='Erro')
+    finally:
+       conn.close()
+       
+
+def mover_alimento_para_apagados(id_alimento):
+    data_atual = datetime.now()
+    nova_data = data_atual + timedelta(days=15) 
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE alimentos
+            SET apagado = %s, date = %s
+            WHERE id = %s
+          
+        """, ('sim', nova_data, id_alimento))
+        conn.commit()
+        popup('Alimento movido para apagados com sucesso', title='Sucesso')
+    except Exception as e:
+        popup(f"Erro ao mover o alimento para apagados: {e}", title='Erro')
+    finally:
+       conn.close()
+def apagar_alimento(id):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+          DELETE FROM alimentos id WHERE id = %s
+          
+        """, (id_alimento))
+        conn.commit()
+        popup('Alimento apagado com sucesso', title='Sucesso')
+    except Exception as e:
+        popup(f"Erro ao apagar o alimento: {e}", title='Erro')
+    finally:
+       conn.close()
+horas = [f'{i:02d}' for i in range(24)]  # 00 a 23 horas
+minutos = [f'{i:02d}' for i in range(60)]
+def adicionar_refeiçao(nome, horario, typo, id_alimento, quantia, id_dieta, preparo):
+    print(f"Dados recebidos: nome={nome}, horario={horario}, typo={typo}, id_alimento={id_alimento}, quantia={quantia}, id_dieta={id_dieta}, preparo={preparo}")
+    conn = conectar_bd()  # Conexão com o banco de dados
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO refeiçao (nome, horario, typo, id_alimento, quantia, id_dieta, preparo, apagado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (nome, horario, typo, id_alimento, quantia, id_dieta, preparo, 'nao'))
+
+        conn.commit()
+        popup('Refeição adicionada com sucesso', title='Sucesso')
+        return ''
+    except Exception as e:
+        popup(f"Erro ao adicionar a refeição: {e}", title='Erro')
+        print(e)
+        return 1
+    finally:
+        conn.close()
+
+
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def tela_adicionar_alimento(id_):
     ty = ['gramas','ml']
@@ -134,13 +264,40 @@ def tela_adicionar_alimento(id_):
     
     
     
-#def  rastrear_alimentos(id_criador):
-   # pass
+def  rastrear_alimentos(id_criador):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nome FROM alimentos WHERE apagado = 'nao'AND  id_criador = %s ",(id_criador,))
+    dados = cursor.fetchall()
+    conn.close()
+    nomes = [item[1] for item in dados]
+    return dados
+ 
+def  rastrear_alimento(id_criador):
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nome FROM alimentos WHERE apagado = 'nao'AND  id_criador = %s ",(id_criador,))
+    dados = cursor.fetchall()
+    conn.close()
 
+    return dados
+ 
+ 
+def tela_restaurar_alimento(id_criador):
+    dados = fetch_books_5(id_criador)  # Usando a função fetch_books para obter os livros
+    cabecalhos = ['Nome','Calorias','Proteinas', 'Carboidratos','Gorduras','Tipo de pesagem', 'Quantidade']
+    tree_data = gerar_dados_estruturados(dados)
+    layout = [
+    [Text('          Vida Saudavel começa com sua criaçao entao Crie e imagine', font=("Arial", 13))],
+    [Button("Restaurar", font=("Arial", 12)), Button("Remover", font=("Arial", 12))],
+    [Tree(data=tree_data, headings=cabecalhos, col0_width=10, auto_size_columns=True, num_rows=10, key='-TREE-', show_expanded=False)]
+    ]
+    return layout
+    
 
 def tela_inicial_nutrologo():
     return [
-        [Menu([['Conta', ['Excluir conta']], ['Ajuda', ['Sobre']]])],
+        [Menu([['Conta', ['Excluir conta','Tela']], ['Ajuda', ['Sobre']]])],
         [Text('           Menu')],
         [Button('Gerenciamento de dietas',key = 'dietas'),Button('Gerenciamento de conta', key='conta')],
         [Button('Adicionar alimento')]
@@ -154,9 +311,11 @@ def tela_EXCLUIR_conta():
     ]
 
 
-def Tela_adicionar_dieta(id_dieta):
+def Tela_adicionar_dieta(id_dieta,id_criador):
     dados = fetch_books2(id_dieta)  # Usando a função fetch_books para obter os livros
-    cabecalhos = ['Nome do alimento ','Horario da refeiçao ', 'Alimento', 'Porçao','Pesagem da refeiçao','Descrisao']
+    cabecalhos = ['Nome','Calorias','Proteinas', 'Carboidratos','Gorduras','Tipo de pesagem', 'Quantidade','Descrisao']
+    #ty = ['gramas','ml','kg','litro']
+    ty = ['gramas','ml']
     tree_data = gerar_dados_estruturados(dados)
     alimentos = rastrear_alimentos(id_criador)
     layout = [
@@ -164,13 +323,13 @@ def Tela_adicionar_dieta(id_dieta):
         [Text('                                                                 Vida Saudavel começa com sua criaçao entao Crie e imagine', font=("Arial", 14))],
         [Text('Nome da Dieta '), Input(key='nome_dieta')],
         [Text('Nome do Criador '), Input(key='autor')],
-        [Text('Email do criador'), Input(key='email')],
+        [Text('Email do Criador'), Input(key='email')],
         [Text('       Adicione e gerencie as refeiçaoes abaixo:')],
         [Text('Nome da refeiçao'), Input(key='nome_refeiçao')],
-        [Text('Horario da Refeiçao'), Input(key='localizacao')],
-        [Text('Alimento'), Combo(alimentos, default_value=alimentos[0], readonly=True, key='alimento')],
-        [Text('Tipo '),InputText('', key='typo', disabled=True, size=(30, 1)),Text('Calorias'),InputText('', key='calorias', disabled=True, size=(30, 1)),Text('Proteinas'),InputText('', key='proteinas', disabled=True, size=(30, 1)),Text('Carboidratos'),InputText('', key='carboidratos', disabled=True, size=(30, 1)),Text('Gorduras'),InputText('', key='gorduras', disabled=True, size=(30, 1))],
-        [Text('Porçao'),  Spin([i for i in range(1, 100)], initial_value=1, key='quantia'),Text('Typo de pesagem para a refeiçao')],
+        [Text('Horario da Refeiçao'), Combo(horas, default_value='00', key='-HORA-'), Text(':'), Combo(minutos, default_value='00', key='-MINUTO-')],
+        [Text('Alimento'), Combo(alimentos,enable_events= True, readonly=True, key='alimento')],
+        [Text('Tipo '),InputText('', key='typo', disabled=True, size=(20, 1)),Text('Calorias'),InputText('', key='calorias', disabled=True, size=(20, 1)),Text('Proteinas'),InputText('', key='proteinas', disabled=True, size=(20, 1)),Text('Carboidratos'),InputText('', key='carboidratos', disabled=True, size=(20, 1)),Text('Gorduras'),InputText('', key='gorduras', disabled=True, size=(20, 1)),Text('Quantidade por esse valores'),InputText('', key='quantidade_', disabled=True, size=(20, 1))],
+        [Text('Porçao'),  Spin([i for i in range(1, 100)], initial_value=1, key='quantia'),Text('Typo de pesagem para a refeiçao'), Combo(ty, default_value=ty[0], readonly=True, key='tipe')],
         [Text('Descriçao ou  preparo')],
         [Multiline(size=(30, 5), key='textbox')],
         [Button("Adicionar", font=("Arial", 12)), Button("Remover", font=("Arial", 12)), Button("Alterar", font=("Arial", 12)), Button('Recuperar dados', font=("Arial", 12))],
@@ -199,7 +358,7 @@ def apagar_refeiçao(id):
     if conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("DELETE FROM refeiçao WHERE  id", (id,))
+                cursor.execute("DELETE FROM refeiçao WHERE  id = %s", (id,))
                 conn.commit()
             except mysql.connector.Error as e:
                 popup(f"Erro ao apagar a refeição: {e}")
@@ -211,11 +370,34 @@ def verificar_se_exste_branco():
     conn = conectar_bd()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT  id, FROM dieta WHERE em_branco = %s", ('sim',))
-        dados = cursor.fetchone()
+        cursor.execute("SELECT  id, FROM dieta WHERE em_branco = 'sim'")
+        dados= cursor.fetchone()
+        conn = conectar_bd()
+        cursor = conn.cursor()
+        try:
+                cursor.execute("DELETE FROM refeiçao WHERE  id_dieta = %s", (dados[0],))
+                conn.commit()
+                
+        except mysql.connector.Error as e:
+             pass
+        finally:
+            conn = conectar_bd()
+        cursor = conn.cursor()
+        try:
+                cursor.execute("DELETE FROM dieta WHERE  id = %s", (dados[0],))
+                conn.commit()
+                
+        except mysql.connector.Error as e:
+             pass
+        finally:
+            
+                  
+            
+                    cursor.close()
+                    conn.close()
+                    return None
     except:
-        popup('Erro inesperado')
-        dados = ''
+        dados = None
     finally:
         conn.close()
         return dados
@@ -226,16 +408,19 @@ def criar_dieta_vasia():
         try:
             cursor.execute('''
                 INSERT INTO dieta (em_branco)
-                VALUES (%s,)
-            ''', ('sim'))
+                VALUES (%s)
+            ''', ('sim',))  # Sem a vírgula após %s
             conn.commit()
             ultimo_id = cursor.lastrowid
+            cursor.close()  # Fechar o cursor antes do return
             return ultimo_id
-            cursor.close()
 
         except Exception as e:
-            popup(f"Erro ao tendar abrir uma dieta: {e}", title='Erro')
+            popup(f"Erro ao tentar abrir uma dieta: {e}", title='Erro')
+            print(e)
+
         finally:
+            cursor.close()
 
             conn.close()
 def  excluir_conta(id_conta):
@@ -272,11 +457,25 @@ def  excluir_conta(id_conta):
                 WHERE id_dieta = %s
             """, ('sim',nova_data, id_conta))
             conn.commit()
-            popup('Dieta movida para apados com sucesso ', title='Sucesso')
+
         except Exception as e:
             popup(f"Erro ao mover as refeiçaoes da dieta apagada para apagados: {e}", title='Erro')
         finally:
            conn.close()
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE alimentos
+            SET apagado = %s, date = %s
+            WHERE id_criador = %s
+        """, ('sim', nova_data, id_criador))
+        conn.commit()
+
+    except Exception as e:
+        popup(f"Erro ao mover o alimento para apagados: {e}", title='Erro')
+    finally:
+       conn.close()
     conn = conectar_bd()
     cursor = conn.cursor()
     try:
@@ -444,7 +643,17 @@ def mover_refeiçao_para_apagados(id_refeiçao):
   #########################################################   LOGIN  #############################################################################################       LOGIN       ##############################################################
   
 
-  
+def salvar_tema(tema):
+    with open(CAMINHO_JSON, 'w') as arquivo_json:
+        json.dump({'tema': tema}, arquivo_json)
+
+# Função que carrega o tema do arquivo JSON
+def carregar_tema():
+    if os.path.exists(CAMINHO_JSON):
+        with open(CAMINHO_JSON, 'r') as arquivo_json:
+            dados = json.load(arquivo_json)
+            return dados.get('tema', theme())  # Retorna o tema salvo ou o padrão se não existir
+    return theme()
 
 def verificar_usuario(user):
     conn = conectar_bd()
@@ -483,7 +692,8 @@ def adicionar_usuario(nome, email,user,senha,tipo):
             cursor.close()
        
         except Exception as e:
-            popup(f"Erro ao tendar abrir uma dieta: {e}", title='Erro')
+            popup(f"Erro : {e}", title='Erro')
+        
         else:
                                  popup('Usuario cadastrado com sucesso')
         finally:
@@ -546,6 +756,18 @@ def tela_cadastro():
  
  
  
+ 
+def criar_janela_tema_atual(tema_atual):
+    theme(tema_atual)  # Define o tema atual
+    
+    layout = [
+        [Text(f'Tema atual: {tema_atual}', font=("Helvetica", 16))],
+        [Text('Selecione um tema da lista abaixo:')],
+        [Listbox(values=theme_list(), size=(30, 10), key='-LIST-', enable_events=True)],
+        [Button('Sair')]
+    ]
+    
+    return Window(f'Tema: {tema_atual}', layout, finalize=True)
  
  
  
@@ -618,8 +840,6 @@ def ver_refeiçao_em_dieta(id_dieta):
 
 
     
-def tela_dieta():
-    pass
 
 
 
@@ -703,7 +923,7 @@ def pegar_dados_dieta(id_dieta):
         'email': dados_dieta[4],
         'alimentos': lista_alimentos
     }
-theme('DarkBlue18')
+
 # Função para mostrar os dados da dieta no PySimpleGUI
 def mostrar_dieta(id_dieta):
     # Pegar os dados da dieta e das refeições
@@ -759,7 +979,6 @@ def mostrar_dieta(id_dieta):
             break
 
     window.close()
-
 
 def escolher_dieta_mostrar():
  # Pegar os dados da dieta e das refeições
@@ -848,10 +1067,14 @@ def escolher_dieta_mostrar():
 #########################################################    CODE    #############################################################################################         CODE       ##############################################################
  
 
-
+tema_atual = carregar_tema()
+theme(tema_atual)
 
 janela = Window('Login',tela_login())
+
+
 while True:
+    
     evento,valor = janela.read()
     if evento == 'Cancelar' or evento == WIN_CLOSED:
         break
@@ -886,8 +1109,12 @@ while True:
         if not valor['-nome-'] or not valor['-senha-']:
             popup('Preencha todos os campos')
         else:
-           a =  verificar_usuario(valor['-nome-'])
-           a = a[0]
+        
+           try:
+            a =  verificar_usuario(valor['-nome-'])
+            a = a[0]
+           except:
+              a = None
            if not a :
                popup('O usuario não existe')
            else: 
@@ -904,8 +1131,107 @@ while True:
                                  break
                                  
                            if evento =='dietas' or evento == "Gerenciamento de dietas":
-                               pass
-                           
+                               janela.close()
+                         
+                               janela =Window('Adicionar dieta',tela_dieta(dados_user[0]))
+                               while True :
+                                   evento,valor = janela.read()
+                                   if evento  == WIN_CLOSED:
+                                         janela.close()
+                                         janela = Window('Menu nutrólogo',tela_inicial_nutrologo())
+                                         break
+                                   if evento == 'Remover':
+                                       pass
+                                   if evento == 'Recuperar dados':
+                                       pass
+                                   if evento == 'Alterar':
+                                       pass
+                                   if evento == 'Adicionar':
+                                        dado = verificar_se_exste_branco()
+                                        if not dado:
+                                           id_dieta = criar_dieta_vasia()
+                                           janela.close()
+                                           janela = Window('Adicionar dieta',Tela_adicionar_dieta(id_dieta,dados_user[0]))
+                                           a = ''
+                                           id_alimento = ''
+                                           while True:
+                                                evento,valor = janela.read()
+                                                if evento  == WIN_CLOSED  or evento == 'Voltar':
+                                                    janela.close()
+                                                    janela = Window('Adicionar dieta',tela_dieta(dados_user[0]))
+                                                    break
+                                                if evento == 'Salvar':
+                                                      dados = fetch_books2(id_dieta) 
+                                                      if not dados or dados == '':
+                                                          popup('Adicione uma refeiçao antes de criar de salvar a dieta')
+                                                      else:
+                                                          if not valor['nome_dieta'] or not valor['autor'] or not valor['email'] :
+                                                              popup('Preencha o campo de nome da dieta,nome do criador,email')
+                                                          else:
+                                                              po =  somar_calorias_dieta(id_dieta)
+                                                              if po == None:
+                                                                  pass
+                                                              else:
+                                                                 Dieta(id_dieta,valor['nome_dieta'],po,valor['autor'],valor['email'],dados_user[0])
+                                                    
+                                                if evento == "Adicionar":
+                                                    if not valor['alimento'] or not  valor['nome_refeiçao'] or not valor['typo'] :
+                                                        popup('Preencha todos os campos da refeiçao')
+                                                    else:
+                                                         horario = valor['-HORA-']+':'+ valor['-MINUTO-']
+                                                         p = adicionar_refeiçao(valor['nome_refeiçao'],horario,valor['tipe'],id_alimento,valor['quantia'],id_dieta,valor['textbox'])
+                                                         if p == 1:
+                                                                 janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books2(id_dieta)))
+
+                                                         else:
+                                                                janela['textbox'].update('')
+                                                                janela['typo'].update('', disabled=True)
+                                                                janela['calorias'].update(0, disabled=True)
+                                                                janela['proteinas'].update(0, disabled=True)
+                                                                janela['carboidratos'].update(0, disabled=True)
+                                                                janela['gorduras'].update(0, disabled=True)
+                                                                janela['quantidade_'].update(1)
+                                                                janela['nome_refeiçao'].update('')
+                                                                janela['-TREE-'].update(values = gerar_dados_estruturados(fetch_books2(id_dieta)))
+                                                         janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books2(id_dieta)))
+                                                                                   
+                                                if evento == 'Remover':
+                                                    selecionado = valor['-TREE-']
+                                                    if selecionado:
+                                                        id_refeiçao = selecionado[0]
+                                                        mover_refeiçao_para_apagados(id_refeiçao)
+                                                        janela['-TREE-'].update(values = gerar_dados_estruturados(fetch_books2(id_dieta)))
+                                                        
+                                                    
+                                                if valor['alimento'] != a:
+                                                        
+                                                        id_selecionado = valor['alimento'][0]  # Pega o primeiro elemento da tupla (ID)
+
+                                               
+                                                        
+                                                        # Continua se o id_selecionado foi encontrado
+                                                        if id_selecionado:
+                                                            conn = conectar_bd()
+                                                            cursor = conn.cursor()
+                                                            cursor.execute("SELECT id, nome, calorias, proteinas, carboidratos, gorduras, tipo_pesagem, quantia FROM alimentos WHERE id = %s", (id_selecionado,))
+                                                            dados = cursor.fetchone()
+                                                            conn.close()
+                                                            
+                                                            if dados:
+                                                                janela['typo'].update(dados[5], disabled=True)
+                                                                janela['calorias'].update(dados[2], disabled=True)
+                                                                janela['proteinas'].update(dados[3], disabled=True)
+                                                                janela['carboidratos'].update(dados[4], disabled=True)
+                                                                janela['gorduras'].update(dados[5], disabled=True)
+                                                                janela['quantidade_'].update(dados[6])
+                                                                id_alimento = id_selecionado
+                                                            a = valor['alimento']
+                                                                                
+                                                
+                                        
+                                                    
+                                        
+                                               
                            
                            if evento == 'Excluir conta':
                                janela.close()
@@ -922,7 +1248,24 @@ while True:
                                         janela = Window('Login',tela_login())
                                    
                                     
-                           
+                           if evento == 'Tela':
+                                janela.close()
+                                tema_atual = carregar_tema()
+                                janela = criar_janela_tema_atual(tema_atual)
+                                while True:
+                                    evento, valores = janela.read()
+
+                                    if evento == WIN_CLOSED or evento == 'Sair':
+                                       janela.close()
+                                       janela = Window('Menu nutrólogo',tela_inicial_nutrologo())
+                                       break
+
+             
+                                    if evento == '-LIST-':
+                                        novo_tema = valores['-LIST-'][0] 
+                                        janela.close()  
+                                        salvar_tema(novo_tema)  # Salva o novo tema em JSON
+                                        janela = criar_janela_tema_atual(novo_tema)  
                            
                            
                            
@@ -936,11 +1279,54 @@ while True:
                                        janela = Window('Login',tela_inicial_nutrologo())     
                                        break
                                    if evento == 'Adicionar':
-                                        if not valor['nome']or  not valor['calos']or  not valor['protes']or  not valor['cabos']or  not valor['typo']or  not valor['quantia']:  
+                                        if not valor['nome']or   not valor['quantia']:  
                                            popup('preencha todos os campos')
                                         else:
                                             adicionar_alimento(valor['nome'],valor['calos'],valor['protes'],valor['cabos'],valor['gordura'],valor['typo'],valor['quantia'],dados_user[0])
                                             janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books_4(dados_user[0])))
+                                            
+                                            janela['nome'].update('')
+                                            janela['calos'].update(0)
+                                            janela['protes'].update(0)
+                                            janela['cabos'].update(0)
+                                            janela['gordura'].update(0)
+                                            janela['quantia'].update(1)
+                                            
+                                   if evento == 'Remover':
+                                        selecionado = valor['-TREE-']
+                                        if selecionado:
+                                            id_alimento = selecionado[0]
+                                            mover_alimento_para_apagados(id_alimento)
+                                            janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books_4(dados_user[0])))
+                                   if evento ==  'Recuperar dados':
+                                       janela.close()
+                                       janela = Window('restaurar refeiçao', tela_restaurar_alimento(dados_user[0]))
+                                       while True:
+                                           evento,valor = janela.read()
+                                           if evento  == WIN_CLOSED:
+                                                  janela.close()
+                                                  janela = Window('Adicionar',tela_adicionar_alimento(dados_user[0]))
+                                                  break
+                                           if evento == 'Restaurar':
+                                                selecionado = valor['-TREE-']
+                                                if selecionado:
+                                                    id_alimento = selecionado[0]
+                                                    restalrar_alimento(int(id_alimento))
+                                                    janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books_5(dados_user[0])))
+                                           if evento == 'Remover':
+                                                selecionado = valor['-TREE-']
+                                                if selecionado:
+                                                      id_alimento = selecionado[0]
+                                                      id_alimento = [id_alimento]
+                                                      apagar_alimento(id_alimento)
+                                                      
+                                                      janela['-TREE-'].update(values=gerar_dados_estruturados(fetch_books_5(dados_user[0])))
+                                                    
+                                               
+                                                    
+                                                
+                                            
+                                       
                                            
                                             
                                
@@ -964,28 +1350,4 @@ while True:
                else:
                    popup('A senha ou usuario esta errada ')
 
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+janela.close()   
