@@ -1882,9 +1882,7 @@ def main(page: ft.Page):
                         for refeicao in refeicoes:
                             id_refeicao, nome_refeicao, horario_refeicao = refeicao
                             refeicao_info = ft.Column(
-                                controls=[
-                                    ft.Text(f"Refeição: {nome_refeicao} (Horário: {horario_refeicao})", size=18),
-                                ]
+                                controls=[ft.Text(f"Refeição: {nome_refeicao} (Horário: {horario_refeicao})", size=18)]
                             )
 
                             # Busque os alimentos dessa refeição
@@ -1922,8 +1920,11 @@ def main(page: ft.Page):
                         ]
                     )
 
-                    # Busque as dietas recomendadas com base no IMC
-                    cursor.execute("SELECT nome FROM dieta WHERE calorias_totais >= %s", (imc,))  # Ajuste a lógica conforme necessário
+                    # Calcular as calorias recomendadas
+                    calorias_recomendadas = calcular_calorias_recomendadas(imc)
+
+                    # Busque as dietas recomendadas com base nas calorias
+                    cursor.execute("SELECT nome FROM dieta WHERE calorias_totais <= %s", (calorias_recomendadas,))  # Ajuste a lógica conforme necessário
                     dietas_recomendadas = cursor.fetchall()
 
                     if dietas_recomendadas:
