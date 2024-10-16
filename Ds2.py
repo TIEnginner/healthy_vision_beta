@@ -76,8 +76,15 @@ def menu(page: ft.Page):
                     cursor.execute("SELECT nome FROM dieta")
                     dietas = cursor.fetchall()
                     dropdown.options.clear()  # Limpa as opções existentes.
-                    for dieta in dietas:
-                        dropdown.options.append(ft.Dropdown(label=dieta[0], value=dieta[0]))  # Adiciona dietas ao dropdown.
+                    
+                    if not dietas:
+                        print("Nenhuma dieta encontrada na tabela 'dieta'.")
+                    else:
+                        for dieta in dietas:
+                            nome_dieta = dieta[0].strip()  # Remove espaços em branco
+                            dropdown.options.append(ft.Dropdown(label=nome_dieta, value=nome_dieta))  # Adiciona dietas ao dropdown.
+                        print(f"Dietas carregadas: {[dieta[0] for dieta in dietas]}")  # Log das dietas carregadas.
+
             except Exception as e:
                 print(f"Ocorreu um erro ao carregar as dietas: {e}")
             finally:
@@ -559,7 +566,6 @@ def menu(page: ft.Page):
             ft.DataColumn(ft.Text("Quantidade de calorias")),
         ]
         data_table = ft.DataTable(columns=columns, rows=[])
-
         dialog = ft.AlertDialog(
             title=ft.Text("Pesquisar Dieta"),
             content=ft.Column([
@@ -577,7 +583,7 @@ def menu(page: ft.Page):
             if conn:
                 try:
                     with conn.cursor() as cursor:
-                        cursor.execute("DELETE FROM alimentos WHERE nome = %s", (nome_alimento,))
+                        cursor.execute("DELETE FROM alimento WHERE nome = %s", (nome_alimento,))
                         conn.commit()
                         snack_bar = ft.SnackBar(ft.Text(f'Alimento "{nome_alimento}" excluído com sucesso!'))
                         page.snack_bar = snack_bar
@@ -608,7 +614,7 @@ def menu(page: ft.Page):
                 try:
                     with conn.cursor() as cursor:
                         cursor.execute("""
-                            UPDATE alimentos 
+                            UPDATE alimento 
                             SET nome = %s, calorias = %s 
                             WHERE nome = %s
                         """, (novo_nome, nova_caloria, nome_alimento))
@@ -645,6 +651,229 @@ def menu(page: ft.Page):
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
+
+    def pesquisar_alimento(e):
+            def search_alimento(nome_alimento):
+                conn = create_connection()
+                if conn:
+                    try:
+                        with conn.cursor() as cursor:
+                            cursor.execute("SELECT * FROM alimento WHERE nome = %s", (nome_alimento,))
+                            alimentos = cursor.fetchone()
+                            if alimentos:
+                                data_table.rows = [
+                                    ft.DataRow(cells=[
+                                        ft.DataCell(ft.Text(alimentos[0])),
+                                        ft.DataCell(ft.Text(alimentos[1])),
+                                        ft.DataCell(ft.Text(alimentos[2])),
+                                    ])
+                                ]
+                            else:
+                                data_table.rows = [
+                                    ft.DataRow(cells=[ft.DataCell(ft.Text("Alimento não encontrado."))])
+                                ]
+                            page.update()
+                    except Error as e:
+                        snack_bar = ft.SnackBar(ft.Text('Erro ao consultar dieta.'))
+                        page.snack_bar = snack_bar
+                        snack_bar.open = True
+                        print(f"Ocorreu um erro ao executar a consulta: {e}")
+                    finally:
+                        conn.close()
+            columns = [
+                ft.DataColumn(ft.Text("ID")),
+                ft.DataColumn(ft.Text("Nome")),
+                ft.DataColumn(ft.Text("Quantidade de calorias")),
+            ]
+            data_table = ft.DataTable(columns=columns, rows=[])
+            dialog = ft.AlertDialog(
+                title=ft.Text("Pesquisar Alimento"),
+                content=ft.Column([
+                    ft.TextField(label="Nome do alimento:", on_submit=lambda e: search_alimento(e.control.value)),
+                    data_table,
+                ]),
+            )
+            page.overlay.append(dialog)
+            dialog.open = True
+            page.update()
+
+    def save_refeicao(nome, horario, calorias, proteinas, gorduras, carboidratos):
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO refeicao (nome, horario, calorias, proteinas, gorduras, carboidratos) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (nome, horario, calorias, proteinas, gorduras, carboidratos)
+                    )
+                    conn.commit()
+                    snack_bar = ft.SnackBar(ft.Text('Refeição salva com sucesso.'))
+                    page.snack_bar = snack_bar
+                    snack_bar.open = True
+                    page.controls.clear()
+            except Error as e:
+                snackbar = ft.SnackBar(ft.Text("Ocorreu um erro ao cadastrar a refeição, tente novamente."))
+                page.snack_bar = snackbar
+                snackbar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
+
+    def save_refeicoes(e):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Salvar Refeição"),
+            content=ft.Column(
+                [
+                    ft.TextField(label='Nome da refeição:'),
+                    ft.TextField(label='Horário da refeição:'),
+                    ft.TextField(label='Calorias:'),
+                    ft.TextField(label='Proteínas:'),
+                    ft.TextField(label='Gorduras:'),
+                    ft.TextField(label='Carboidratos:')
+                ]
+            ),
+            actions=[
+                ft.TextButton('Salvar', on_click=lambda e: save_refeicao(
+                    dialog.content.controls[0].value,
+                    dialog.content.controls[1].value,
+                    dialog.content.controls[2].value,
+                    dialog.content.controls[3].value,
+                    dialog.content.controls[4].value,
+                    dialog.content.controls[5].value
+                )),
+            ],
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
+
+    def listar_refeicoes(e):
+        refeicao_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("ID")),
+                ft.DataColumn(ft.Text("Nome da Refeição")),
+                ft.DataColumn(ft.Text("Horário")),
+            ]
+        )
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT id, nome, horario FROM refeicao")
+                    rows = cursor.fetchall()
+                    refeicao_table.rows.clear()
+                    
+                    for refeicao in rows:
+                        refeicao_table.rows.append(
+                            ft.DataRow(cells=[
+                                ft.DataCell(ft.Text(refeicao[0])),  # ID da refeição
+                                ft.DataCell(ft.Text(refeicao[1])),  # Nome da refeição
+                                ft.DataCell(ft.Text(refeicao[2])),  # Horário da refeição
+                            ])
+                        )
+                    table_container = ft.Container(
+                        content=ft.Column(
+                            controls=[refeicao_table],
+                            scroll=ft.ScrollMode.AUTO,
+                        ),
+                        height=400,
+                        border_radius=ft.border_radius.all(10),
+                        padding=ft.padding.all(10),
+                    )
+                    back_button = ft.ElevatedButton(
+                        text="Voltar",
+                        on_click=lambda e: second_page(page)  # Ou a página que você deseja retornar
+                    )
+                    main_column = ft.Column(
+                        controls=[
+                            ft.Text("Lista de Refeições", size=24, weight="bold"),
+                            table_container,
+                            back_button,
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                    )
+                    page.controls.clear()
+                    page.add(main_column)
+                    page.update()
+                    
+            except Error as e:
+                snackbar = ft.SnackBar(ft.Text("Ocorreu um erro ao listar as refeições."))
+                page.snack_bar = snackbar
+                snackbar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
+
+    def excluir_refeicao(refeicao_id):
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM refeicao WHERE id = %s", (refeicao_id,))
+                    conn.commit()
+                    snackbar = ft.SnackBar(ft.Text("Refeição excluída com sucesso."))
+                    page.snack_bar = snackbar
+                    snackbar.open = True
+            except Error as e:
+                snackbar = ft.SnackBar(ft.Text("Ocorreu um erro ao excluir a refeição."))
+                page.snack_bar = snackbar
+                snackbar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
+
+    def confirmar_exclusao(refeicao_id):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Confirmar Exclusão"),
+            content=ft.Text("Você tem certeza que deseja excluir esta refeição?"),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: dialog.close()),
+                ft.TextButton("Excluir", on_click=lambda e: [excluir_refeicao(refeicao_id), dialog.close()]),
+            ]
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+
+    def atualizar_refeicao(refeicao_id, nome_atual, horario_atual):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Atualizar Refeição"),
+            content=ft.Column(
+                [
+                    ft.TextField(label='Nome da refeição:', value=nome_atual),
+                    ft.TextField(label='Horário da refeição:', value=horario_atual),
+                ]
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: dialog.close()),
+                ft.TextButton("Atualizar", on_click=lambda e: [
+                    salvar_atualizacao(refeicao_id, dialog.content.controls[0].value, dialog.content.controls[1].value),
+                    dialog.close()
+                ]),
+            ],
+        )
+        page.overlay.append(dialog)
+        dialog.open = True
+
+    def salvar_atualizacao(refeicao_id, novo_nome, novo_horario):
+        conn = create_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE refeicao SET nome = %s, horario = %s WHERE id = %s",
+                        (novo_nome, novo_horario, refeicao_id)
+                    )
+                    conn.commit()
+                    snackbar = ft.SnackBar(ft.Text("Refeição atualizada com sucesso."))
+                    page.snack_bar = snackbar
+                    snackbar.open = True
+            except Error as e:
+                snackbar = ft.SnackBar(ft.Text("Ocorreu um erro ao atualizar a refeição."))
+                page.snack_bar = snackbar
+                snackbar.open = True
+                print(f"Ocorreu um erro ao executar a consulta: {e}")
+            finally:
+                conn.close()
 
     def list_pacients(e):
         patient_table = ft.DataTable(
@@ -715,7 +944,6 @@ def menu(page: ft.Page):
     def second_page(page: ft.Page):
         page.controls.clear()
         page.title = 'Menu do Nutrólogo'
-        
         page.add(ft.Column([
             ft.Text(f'Bem-vindo!', size=20),
             ft.FilledButton('Cadastrar dieta', on_click=cadastrar_dieta, icon=ft.icons.ADD),
@@ -727,7 +955,12 @@ def menu(page: ft.Page):
             ft.FilledButton('Cadastrar alimentos',on_click=save_alimentos, icon=ft.icons.ADD),
             ft.FilledButton('Listar alimentos',on_click=listar_alimentos, icon=ft.icons.LIST),
             ft.FilledButton('Excluir alimentos',on_click=excluir_alimento, icon=ft.icons.DELETE),
-            ft.FilledButton('Atualizar alimentos',on_click=editar_alimento, icon=ft.icons.DELETE),
+            ft.FilledButton('Atualizar alimentos',on_click=editar_alimento, icon=ft.icons.EDIT),
+            ft.FilledButton('Pesquisar alimentos',on_click=pesquisar_alimento, icon=ft.icons.SEARCH),
+            ft.FilledButton('Cadastrar refeições',on_click=save_refeicoes, icon=ft.icons.ADD),
+            ft.FilledButton('Listar refeições',on_click=listar_refeicoes, icon=ft.icons.LIST),
+            ft.FilledButton('Excluir refeições',on_click=excluir_refeicao, icon=ft.icons.DELETE),
+            ft.FilledButton('Atualizar refeições',on_click=atualizar_refeicao, icon=ft.icons.EDIT),
 
         ]))
         page.update()
